@@ -188,25 +188,37 @@ export default function Calculator() {
     }));
   };
 
-  // При выборе материала подставляем цену для клиента из прайса (закупка + наценка)
+  // При выборе материала подставляем цену для клиента из прайса
   const onMaterialSelect = (id, материал) => {
     const priceItem = settings.прайсФасадов.find(p => p.материал === материал);
-    let цена = item => item.цена;
+    let autoЦена = '';
     if (priceItem) {
-      const закупка = parseFloat(priceItem.закупка) || 0;
-      const наценка = parseFloat(priceItem.наценка) || 0;
-      // Новый формат: закупка + наценка%; старый формат: прямая цена
-      const computed = priceItem.закупка !== undefined
-        ? (закупка > 0 ? Math.round(закупка * (1 + наценка / 100)) : '')
-        : (priceItem.цена || '');
-      цена = () => computed;
+      // Явно заданная цена имеет приоритет; иначе вычисляем из закупки и наценки
+      if (priceItem.цена) {
+        autoЦена = priceItem.цена;
+      } else {
+        const з = parseFloat(priceItem.закупка) || 0;
+        const н = parseFloat(priceItem.наценка) || 0;
+        autoЦена = з > 0 ? String(Math.round(з * (1 + н / 100))) : '';
+      }
     }
     setForm(f => ({
       ...f,
       фасады: f.фасады.map(item =>
         item.id === id
-          ? { ...item, материал, цена: цена(item) }
+          ? { ...item, материал, цена: autoЦена || item.цена }
           : item
+      ),
+    }));
+  };
+
+  // Обновить количество позиции фурнитуры
+  const setFurnitureQty = (posId, количество) => {
+    setSaved(false);
+    setForm(f => ({
+      ...f,
+      фурнитураПозиции: f.фурнитураПозиции.map(p =>
+        p.id === posId ? { ...p, количество } : p
       ),
     }));
   };
@@ -443,15 +455,61 @@ export default function Calculator() {
               )}
             </Card>
 
-            {/* Блок: Остальные позиции */}
-            <Card title="Прочие позиции">
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-4">
-                <Field label="Столешница" hint="сумма вручную">
-                  <NumInput value={form.столешница} onChange={v => set('столешница', v)} placeholder="0" suffix="₽" />
-                </Field>
-                <Field label="Фурнитура" hint="сумма вручную">
-                  <NumInput value={form.фурнитура} onChange={v => set('фурнитура', v)} placeholder="0" suffix="₽" />
-                </Field>
+            {/* Блок: Столешница */}
+            <Card title="Столешница">
+              <Field label="Стоимость столешницы" hint="сумма вручную">
+                <NumInput value={form.столешница} onChange={v => set('столешница', v)} placeholder="0" suffix="₽" />
+              </Field>
+            </Card>
+
+            {/* Блок: Фурнитура */}
+            <Card title="Фурнитура" badge={result.фурнитура > 0 ? fmt(result.фурнитура) : undefined}>
+              {/* Сообщение если цены ещё не заполнены */}
+              {(settings.прайсФурнитуры || []).every(p => !p.цена) && (
+                <div className="text-xs text-white/30 mb-4">
+                  Цены не заполнены — сначала задайте прайс фурнитуры в{' '}
+                  <a href="/settings" className="text-brand-blue hover:underline">Настройках</a>.
+                </div>
+              )}
+              {/* Сообщение о старой сумме при загрузке из истории */}
+              {parseFloat(form.фурнитура) > 0 && (form.фурнитураПозиции || []).every(p => !parseFloat(p.количество)) && (
+                <div className="bg-white/5 rounded-xl px-4 py-2 mb-4 text-xs text-white/40">
+                  Из предыдущего расчёта: {fmt(parseFloat(form.фурнитура))} — обновите позиции ниже
+                </div>
+              )}
+              <div className="space-y-1">
+                {(form.фурнитураПозиции || []).map(pos => {
+                  const priceItem = (settings.прайсФурнитуры || []).find(p => p.id === pos.id);
+                  if (!priceItem) return null;
+                  const qty = parseFloat(pos.количество) || 0;
+                  const price = parseFloat(priceItem.цена) || 0;
+                  const total = qty * price;
+                  const hasQty = qty > 0;
+                  return (
+                    <div
+                      key={pos.id}
+                      className={`flex items-center gap-2 sm:gap-3 py-1.5 border-b border-white/5 last:border-0 ${hasQty ? '' : 'opacity-50'}`}
+                    >
+                      <div className="flex-1 text-sm text-white/80 truncate">{priceItem.название}</div>
+                      <div className="text-xs text-white/30 w-10 text-right flex-shrink-0">{priceItem.единица}</div>
+                      <div className="w-20 flex-shrink-0">
+                        <input
+                          type="number"
+                          value={pos.количество}
+                          onChange={e => setFurnitureQty(pos.id, e.target.value)}
+                          placeholder="0"
+                          min={0}
+                          className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                            text-white placeholder-white/30 rounded-lg px-3 py-2 text-sm text-right outline-none transition-colors
+                            [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                      <div className={`w-24 text-right text-sm flex-shrink-0 ${hasQty ? 'text-white/80' : 'text-white/20'}`}>
+                        {hasQty && price > 0 ? fmt(total) : price > 0 ? '—' : <span className="text-white/20 text-xs">нет цены</span>}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </Card>
 

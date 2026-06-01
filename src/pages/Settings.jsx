@@ -41,32 +41,36 @@ export default function Settings() {
   const [settings, setSettings] = useState({ ...defaultSettings });
   const [savedMsg, setSavedMsg] = useState('');
 
-  // Загружаем настройки из Supabase при открытии страницы
   useEffect(() => {
     loadSettings().then(s => setSettings(s));
   }, []);
 
   const set = (field, value) => setSettings(s => ({ ...s, [field]: value }));
 
-  // Обновить строку прайса фасадов
+  // Прайс фасадов: при изменении закупки или наценки — авто-пересчёт цены для клиента
   const updateFasadPrice = (id, field, value) => {
     setSettings(s => ({
       ...s,
-      прайсФасадов: s.прайсФасадов.map(item =>
-        item.id === id ? { ...item, [field]: value } : item
-      ),
+      прайсФасадов: s.прайсФасадов.map(item => {
+        if (item.id !== id) return item;
+        const updated = { ...item, [field]: value };
+        if (field === 'закупка' || field === 'наценка') {
+          const з = parseFloat(field === 'закупка' ? value : item.закупка) || 0;
+          const н = parseFloat(field === 'наценка' ? value : item.наценка) || 0;
+          updated.цена = з > 0 ? String(Math.round(з * (1 + н / 100))) : '';
+        }
+        return updated;
+      }),
     }));
   };
 
-  // Добавить новый материал фасада
   const addFasadRow = () => {
     setSettings(s => ({
       ...s,
-      прайсФасадов: [...s.прайсФасадов, { id: Date.now(), материал: '', закупка: '', наценка: 30 }],
+      прайсФасадов: [...s.прайсФасадов, { id: Date.now(), материал: '', закупка: '', наценка: 30, цена: '' }],
     }));
   };
 
-  // Удалить материал фасада
   const removeFasadRow = (id) => {
     setSettings(s => ({
       ...s,
@@ -74,7 +78,16 @@ export default function Settings() {
     }));
   };
 
-  // Сохранить настройки
+  // Прайс фурнитуры
+  const updateFurniturePrice = (id, value) => {
+    setSettings(s => ({
+      ...s,
+      прайсФурнитуры: s.прайсФурнитуры.map(item =>
+        item.id === id ? { ...item, цена: value } : item
+      ),
+    }));
+  };
+
   const handleSave = async () => {
     await saveSettings(settings);
     setSavedMsg('Настройки сохранены!');
@@ -138,10 +151,11 @@ export default function Settings() {
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-white/10">
               <h2 className="text-white font-bold">Прайс на фасады</h2>
-              <p className="text-white/40 text-xs mt-1">Цена для клиента считается автоматически из закупки и наценки</p>
+              <p className="text-white/40 text-xs mt-1">
+                Цена для клиента — авто (закупка × наценка%) или введите вручную
+              </p>
             </div>
             <div className="p-6 space-y-3">
-              {/* Заголовки */}
               <div className="hidden sm:flex gap-2 text-xs text-white/40 px-1">
                 <div className="flex-1">Материал</div>
                 <div className="w-28">Закупка / м²</div>
@@ -151,9 +165,9 @@ export default function Settings() {
               </div>
 
               {settings.прайсФасадов.map(item => {
-                const закупка = parseFloat(item.закупка) || 0;
-                const наценка = parseFloat(item.наценка) || 0;
-                const клиентская = закупка > 0 ? Math.round(закупка * (1 + наценка / 100)) : null;
+                const з = parseFloat(item.закупка) || 0;
+                const н = parseFloat(item.наценка) || 0;
+                const авто = з > 0 ? String(Math.round(з * (1 + н / 100))) : '';
                 return (
                   <div key={item.id} className="space-y-2 sm:space-y-0 sm:flex gap-2 items-center">
                     <div className="flex-1 min-w-0">
@@ -188,10 +202,12 @@ export default function Settings() {
                       </div>
                       <div className="sm:w-28 flex-shrink-0">
                         <div className="text-xs text-white/40 mb-1 sm:hidden">Клиенту</div>
-                        <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-center
-                          text-white/50">
-                          {клиентская ? `${клиентская.toLocaleString('ru-RU')} ₽` : '—'}
-                        </div>
+                        <NumInput
+                          value={item.цена}
+                          onChange={v => updateFasadPrice(item.id, 'цена', v)}
+                          placeholder={авто || '0'}
+                          suffix="₽"
+                        />
                       </div>
                     </div>
                     <button
@@ -216,6 +232,35 @@ export default function Settings() {
               >
                 + Добавить материал
               </button>
+            </div>
+          </div>
+
+          {/* Прайс фурнитуры */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10">
+              <h2 className="text-white font-bold">Прайс фурнитуры</h2>
+              <p className="text-white/40 text-xs mt-1">Цена за единицу. Количество задаётся в каждом расчёте отдельно.</p>
+            </div>
+            <div className="p-6 space-y-2">
+              <div className="flex gap-3 text-xs text-white/40 px-1 mb-1">
+                <div className="flex-1">Позиция</div>
+                <div className="w-12 text-center">Ед.</div>
+                <div className="w-32">Цена / ед.</div>
+              </div>
+              {(settings.прайсФурнитуры || []).map(item => (
+                <div key={item.id} className="flex gap-3 items-center">
+                  <div className="flex-1 text-sm text-white/80">{item.название}</div>
+                  <div className="w-12 text-xs text-white/40 text-center">{item.единица}</div>
+                  <div className="w-32">
+                    <NumInput
+                      value={item.цена}
+                      onChange={v => updateFurniturePrice(item.id, v)}
+                      placeholder="0"
+                      suffix="₽"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

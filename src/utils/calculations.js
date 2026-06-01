@@ -41,7 +41,15 @@ export function calcTotal(data, settings) {
     : 0;
 
   const столешница = parseFloat(data.столешница) || 0;
-  const фурнитура  = parseFloat(data.фурнитура)  || 0;
+
+  // Фурнитура: детальный список (если есть ненулевые позиции) или старое ручное поле
+  const hasPositions = (data.фурнитураПозиции || []).some(p => parseFloat(p.количество) > 0);
+  const фурнитура = hasPositions
+    ? data.фурнитураПозиции.reduce((sum, pos) => {
+        const priceItem = (settings.прайсФурнитуры || []).find(p => p.id === pos.id);
+        return sum + (parseFloat(pos.количество) || 0) * (parseFloat(priceItem?.цена) || 0);
+      }, 0)
+    : parseFloat(data.фурнитура) || 0;
 
   const итогоМебель = корпуса + фасадыСумма + фрезеровка + столешница + фурнитура;
 
