@@ -1,7 +1,7 @@
 // Главная страница — расчёт стоимости мебели
 import { useState, useMemo, useEffect } from 'react';
 import AppHeader from '../components/AppHeader';
-import { calcTotal, fmt } from '../utils/calculations';
+import { calcTotal, calcTableTopCutting, fmt } from '../utils/calculations';
 import { loadSettings, saveSettings, defaultSettings, defaultForm, saveCalculation, loadCalculationById } from '../utils/storage';
 
 // ─── Вспомогательные компоненты ─────────────────────────────────────────────
@@ -160,6 +160,12 @@ export default function Calculator() {
 
   // Расчёт в реальном времени (пересчитывается при каждом изменении формы)
   const result = useMemo(() => calcTotal(form, settings), [form, settings]);
+
+  // Результат раскроя столешницы (для отображения в блоке Столешница)
+  const tableTopResult = useMemo(() => {
+    if (form.столешницаРежим !== 'calc' || !form.столешницаДлина) return null;
+    return calcTableTopCutting(form.столешницаДлина, settings.столешницы);
+  }, [form.столешницаРежим, form.столешницаДлина, settings.столешницы]);
 
   // Обновить строку фасада
   const updateFasad = (id, field, value) => {
@@ -456,10 +462,86 @@ export default function Calculator() {
             </Card>
 
             {/* Блок: Столешница */}
-            <Card title="Столешница">
-              <Field label="Стоимость столешницы" hint="сумма вручную">
-                <NumInput value={form.столешница} onChange={v => set('столешница', v)} placeholder="0" suffix="₽" />
-              </Field>
+            <Card title="Столешница" badge={result.столешница > 0 ? fmt(result.столешница) : undefined}>
+              {/* Переключатель */}
+              <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit mb-5">
+                {[['manual', 'Вручную'], ['calc', 'По раскрою']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => set('столешницаРежим', val)}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      form.столешницаРежим === val
+                        ? 'bg-brand-blue text-white'
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {form.столешницаРежим !== 'calc' ? (
+                <Field label="Стоимость столешницы" hint="вводится вручную">
+                  <NumInput value={form.столешница} onChange={v => set('столешница', v)} placeholder="0" suffix="₽" />
+                </Field>
+              ) : (
+                <div className="space-y-4">
+                  <Field label="Общая длина столешницы" hint="мм">
+                    <NumInput
+                      value={form.столешницаДлина}
+                      onChange={v => set('столешницаДлина', v)}
+                      placeholder="4500"
+                      suffix="мм"
+                    />
+                  </Field>
+
+                  {/* Цены не заполнены */}
+                  {!settings.столешницы?.закупка3050 && !settings.столешницы?.закупка4200 && (
+                    <div className="text-xs text-white/30">
+                      Заполните закупочные цены в{' '}
+                      <a href="/settings" className="text-brand-blue hover:underline">Настройках → Столешницы</a>
+                    </div>
+                  )}
+
+                  {/* Ошибка алгоритма */}
+                  {tableTopResult?.error && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
+                      {tableTopResult.error}
+                    </div>
+                  )}
+
+                  {/* Результат раскроя */}
+                  {tableTopResult && !tableTopResult.error && (
+                    <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                      <div className="px-4 py-3 border-b border-white/10 text-xs text-white/40">
+                        Оптимальный раскрой · {tableTopResult.joints === 0 ? 'без швов' : `${tableTopResult.joints} шов${tableTopResult.joints > 1 ? 'а' : ''}`}
+                      </div>
+                      <div className="divide-y divide-white/5">
+                        {tableTopResult.pieces.map((p, i) => (
+                          <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="text-white font-semibold">{p.piece.toLocaleString('ru-RU')} мм</span>
+                            <span className="text-white/40 text-xs">
+                              лист {p.sheet} мм{p.waste > 0 ? ` · отход ${p.waste} мм` : ' · без отхода'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">
+                        <span className="text-white/50 text-sm">
+                          {tableTopResult.n1 > 0 && `${tableTopResult.n1} × 3050 мм`}
+                          {tableTopResult.n1 > 0 && tableTopResult.n2 > 0 && ' + '}
+                          {tableTopResult.n2 > 0 && `${tableTopResult.n2} × 4200 мм`}
+                        </span>
+                        <span className="text-white font-bold">{fmt(tableTopResult.costКлиент)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-xs text-white/25">
+                    Мин. кусок — {settings.столешницы?.минКусок ?? 500} мм. Значение подобрано опытным путём.
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Блок: Фурнитура */}

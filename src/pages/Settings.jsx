@@ -78,6 +78,14 @@ export default function Settings() {
     }));
   };
 
+  // Столешницы
+  const setСтолешницы = (field, value) => {
+    setSettings(s => ({
+      ...s,
+      столешницы: { ...(s.столешницы || {}), [field]: value },
+    }));
+  };
+
   // Прайс фурнитуры
   const updateFurniturePrice = (id, value) => {
     setSettings(s => ({
@@ -232,6 +240,55 @@ export default function Settings() {
               >
                 + Добавить материал
               </button>
+            </div>
+          </div>
+
+          {/* Столешницы */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10">
+              <h2 className="text-white font-bold">Столешницы</h2>
+              <p className="text-white/40 text-xs mt-1">Только постформинг, ширина 600 мм. Листы: 3050 мм и 4200 мм.</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Закупка листа 3050 мм">
+                  <NumInput
+                    value={settings.столешницы?.закупка3050 || ''}
+                    onChange={v => setСтолешницы('закупка3050', v)}
+                    placeholder="0"
+                    suffix="₽"
+                  />
+                </Field>
+                <Field label="Закупка листа 4200 мм">
+                  <NumInput
+                    value={settings.столешницы?.закупка4200 || ''}
+                    onChange={v => setСтолешницы('закупка4200', v)}
+                    placeholder="0"
+                    suffix="₽"
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Наценка (единая для обоих)">
+                  <NumInput
+                    value={settings.столешницы?.наценка ?? 30}
+                    onChange={v => setСтолешницы('наценка', v)}
+                    placeholder="30"
+                    suffix="%"
+                  />
+                </Field>
+                <Field label="Минимальный кусок">
+                  <NumInput
+                    value={settings.столешницы?.минКусок ?? 500}
+                    onChange={v => setСтолешницы('минКусок', v)}
+                    placeholder="500"
+                    suffix="мм"
+                  />
+                </Field>
+              </div>
+              <div className="bg-white/5 rounded-xl px-4 py-3 text-xs text-white/40">
+                Мин. кусок — некрасивый шов, плохо держится. Значение подобрано опытным путём, уточнить по статистике.
+              </div>
             </div>
           </div>
 
