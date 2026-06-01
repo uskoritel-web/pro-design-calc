@@ -62,7 +62,7 @@ export default function Settings() {
   const addFasadRow = () => {
     setSettings(s => ({
       ...s,
-      прайсФасадов: [...s.прайсФасадов, { id: Date.now(), материал: '', цена: '' }],
+      прайсФасадов: [...s.прайсФасадов, { id: Date.now(), материал: '', закупка: '', наценка: 30 }],
     }));
   };
 
@@ -138,44 +138,77 @@ export default function Settings() {
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-white/10">
               <h2 className="text-white font-bold">Прайс на фасады</h2>
-              <p className="text-white/40 text-xs mt-1">Цены за 1 м² (без вычета техники — как говорит Антон)</p>
+              <p className="text-white/40 text-xs mt-1">Цена для клиента считается автоматически из закупки и наценки</p>
             </div>
             <div className="p-6 space-y-3">
               {/* Заголовки */}
-              <div className="flex gap-3 text-xs text-white/40 px-1">
+              <div className="hidden sm:flex gap-2 text-xs text-white/40 px-1">
                 <div className="flex-1">Материал</div>
-                <div className="w-36">Цена за м²</div>
+                <div className="w-28">Закупка / м²</div>
+                <div className="w-24">Наценка</div>
+                <div className="w-28">Клиенту / м²</div>
                 <div className="w-8" />
               </div>
 
-              {settings.прайсФасадов.map(item => (
-                <div key={item.id} className="flex gap-2 sm:gap-3 items-center">
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={item.материал}
-                      onChange={e => updateFasadPrice(item.id, 'материал', e.target.value)}
-                      placeholder="Название материала"
-                      className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
-                        text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
-                    />
+              {settings.прайсФасадов.map(item => {
+                const закупка = parseFloat(item.закупка) || 0;
+                const наценка = parseFloat(item.наценка) || 0;
+                const клиентская = закупка > 0 ? Math.round(закупка * (1 + наценка / 100)) : null;
+                return (
+                  <div key={item.id} className="space-y-2 sm:space-y-0 sm:flex gap-2 items-center">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-white/40 mb-1 sm:hidden">Материал</div>
+                      <input
+                        type="text"
+                        value={item.материал}
+                        onChange={e => updateFasadPrice(item.id, 'материал', e.target.value)}
+                        placeholder="Название материала"
+                        className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                          text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 sm:contents gap-2">
+                      <div className="sm:w-28 flex-shrink-0">
+                        <div className="text-xs text-white/40 mb-1 sm:hidden">Закупка</div>
+                        <NumInput
+                          value={item.закупка}
+                          onChange={v => updateFasadPrice(item.id, 'закупка', v)}
+                          placeholder="0"
+                          suffix="₽"
+                        />
+                      </div>
+                      <div className="sm:w-24 flex-shrink-0">
+                        <div className="text-xs text-white/40 mb-1 sm:hidden">Наценка</div>
+                        <NumInput
+                          value={item.наценка}
+                          onChange={v => updateFasadPrice(item.id, 'наценка', v)}
+                          placeholder="30"
+                          suffix="%"
+                        />
+                      </div>
+                      <div className="sm:w-28 flex-shrink-0">
+                        <div className="text-xs text-white/40 mb-1 sm:hidden">Клиенту</div>
+                        <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-center
+                          text-white/50">
+                          {клиентская ? `${клиентская.toLocaleString('ru-RU')} ₽` : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeFasadRow(item.id)}
+                      className="hidden sm:flex w-8 h-8 items-center justify-center text-white/30 hover:text-red-400 transition-colors text-xl flex-shrink-0"
+                    >
+                      ×
+                    </button>
+                    <button
+                      onClick={() => removeFasadRow(item.id)}
+                      className="sm:hidden text-xs text-white/30 hover:text-red-400 transition-colors"
+                    >
+                      × Удалить
+                    </button>
                   </div>
-                  <div className="w-28 sm:w-36 flex-shrink-0">
-                    <NumInput
-                      value={item.цена}
-                      onChange={v => updateFasadPrice(item.id, 'цена', v)}
-                      placeholder="0"
-                      suffix="₽"
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeFasadRow(item.id)}
-                    className="w-8 h-8 flex items-center justify-center text-white/30 hover:text-red-400 active:text-red-400 transition-colors text-xl flex-shrink-0"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+                );
+              })}
 
               <button
                 onClick={addFasadRow}

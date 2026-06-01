@@ -9,10 +9,10 @@ export const defaultSettings = {
   монтажПроцент: 15,
   доставка: 6000,
   прайсФасадов: [
-    { id: 1, материал: 'ЛДСП', цена: '' },
-    { id: 2, материал: 'МДФ плёнка', цена: '' },
-    { id: 3, материал: 'МДФ эмаль', цена: '' },
-    { id: 4, материал: 'Постформинг', цена: '' },
+    { id: 1, материал: 'ЛДСП', закупка: '', наценка: 30 },
+    { id: 2, материал: 'МДФ плёнка', закупка: '', наценка: 30 },
+    { id: 3, материал: 'МДФ эмаль', закупка: '', наценка: 30 },
+    { id: 4, материал: 'Постформинг', закупка: '', наценка: 30 },
   ],
 };
 
@@ -33,6 +33,15 @@ export async function loadSettings() {
     saved.коэфНиз = defaultSettings.коэфНиз;
     saved.коэфВерх = defaultSettings.коэфВерх;
     delete saved.коэф;
+  }
+  // Миграция: старое поле цена в прайсФасадов → закупка + наценка
+  if (Array.isArray(saved.прайсФасадов)) {
+    saved.прайсФасадов = saved.прайсФасадов.map(item => {
+      if (item.цена !== undefined && item.закупка === undefined) {
+        return { id: item.id, материал: item.материал, закупка: item.цена, наценка: 30 };
+      }
+      return item;
+    });
   }
   return { ...defaultSettings, ...saved };
 }
@@ -99,7 +108,6 @@ export async function deleteCalculation(id) {
 export function defaultForm(settings) {
   return {
     id: Date.now().toString(),
-    режим: 'quick',
     клиент: '',
     объект: '',
     изображение: null,

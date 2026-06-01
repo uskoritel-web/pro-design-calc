@@ -212,9 +212,6 @@ export default function KP() {
                   ? `КП для ${calc.клиент}`
                   : calc.объект || 'Коммерческое предложение'}
               </h1>
-              {calc.режим === 'quick' && (
-                <span className="text-xs text-yellow-400">⚡ Предварительный расчёт</span>
-              )}
             </div>
 
             {/* Кнопки — в ряд, равномерно */}

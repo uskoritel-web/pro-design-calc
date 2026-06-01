@@ -79,11 +79,6 @@ export default function History() {
                       <h3 className="text-white font-bold truncate">
                         {calc.клиент || calc.объект || 'Без названия'}
                       </h3>
-                      {calc.режим === 'quick' && (
-                        <span className="text-xs bg-brand-blue/20 text-brand-blue px-2 py-0.5 rounded-lg flex-shrink-0">
-                          Предв.
-                        </span>
-                      )}
                     </div>
                     {calc.клиент && calc.объект && (
                       <p className="text-white/40 text-sm truncate">{calc.объект}</p>

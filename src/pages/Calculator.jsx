@@ -188,14 +188,24 @@ export default function Calculator() {
     }));
   };
 
-  // При выборе материала подставляем цену из прайса
+  // При выборе материала подставляем цену для клиента из прайса (закупка + наценка)
   const onMaterialSelect = (id, материал) => {
     const priceItem = settings.прайсФасадов.find(p => p.материал === материал);
+    let цена = item => item.цена;
+    if (priceItem) {
+      const закупка = parseFloat(priceItem.закупка) || 0;
+      const наценка = parseFloat(priceItem.наценка) || 0;
+      // Новый формат: закупка + наценка%; старый формат: прямая цена
+      const computed = priceItem.закупка !== undefined
+        ? (закупка > 0 ? Math.round(закупка * (1 + наценка / 100)) : '')
+        : (priceItem.цена || '');
+      цена = () => computed;
+    }
     setForm(f => ({
       ...f,
       фасады: f.фасады.map(item =>
         item.id === id
-          ? { ...item, материал, цена: priceItem?.цена || item.цена }
+          ? { ...item, материал, цена: цена(item) }
           : item
       ),
     }));
@@ -224,7 +234,6 @@ export default function Calculator() {
     window.location.href = `/kp?id=${form.id}`;
   };
 
-  const isQuick = form.режим === 'quick';
   const hasSheetPrice = settings.ценаЛиста > 0;
 
   return (
@@ -253,31 +262,8 @@ export default function Calculator() {
           {/* ── Форма (левая колонка) ── */}
           <div className="flex-1 min-w-0 space-y-4 sm:space-y-5 w-full">
 
-            {/* Блок: Клиент + режим */}
+            {/* Блок: Клиент */}
             <Card title="Новый расчёт">
-              {/* Переключатель режима */}
-              <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl w-fit">
-                {[['quick', '⚡ Быстрый'], ['detailed', '🎯 Точный']].map(([val, label]) => (
-                  <button
-                    key={val}
-                    onClick={() => set('режим', val)}
-                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                      form.режим === val
-                        ? 'bg-brand-blue text-white shadow'
-                        : 'text-white/50 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {isQuick && (
-                <div className="bg-brand-blue/10 border border-brand-blue/20 rounded-xl px-4 py-3 mb-5 text-sm text-brand-blue/90">
-                  Быстрый режим — часть данных приблизительная. КП будет помечено как «Предварительный расчёт».
-                </div>
-              )}
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <Field label="Клиент" hint="(необязательно)">
                   <TextInput value={form.клиент} onChange={v => set('клиент', v)} placeholder="Иванов И.И." />
@@ -463,7 +449,7 @@ export default function Calculator() {
                 <Field label="Столешница" hint="сумма вручную">
                   <NumInput value={form.столешница} onChange={v => set('столешница', v)} placeholder="0" suffix="₽" />
                 </Field>
-                <Field label="Фурнитура" hint={isQuick ? 'необязательно' : 'сумма вручную'}>
+                <Field label="Фурнитура" hint="сумма вручную">
                   <NumInput value={form.фурнитура} onChange={v => set('фурнитура', v)} placeholder="0" suffix="₽" />
                 </Field>
               </div>
@@ -539,13 +525,8 @@ export default function Calculator() {
 
               {/* Итоговая карточка */}
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                <div className="px-5 py-4 border-b border-white/10">
                   <h3 className="text-white font-bold">Итог расчёта</h3>
-                  {isQuick && (
-                    <span className="text-xs bg-brand-blue/20 text-brand-blue px-2 py-1 rounded-lg">
-                      Предварительный
-                    </span>
-                  )}
                 </div>
 
                 <div className="px-5 py-4 space-y-1">

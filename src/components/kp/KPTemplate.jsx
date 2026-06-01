@@ -126,7 +126,6 @@ function formatDate(iso) {
 export default function KPTemplate({ calc }) {
   if (!calc) return null;
   const r = calc.result || {};
-  const isQuick = calc.режим === 'quick';
   const date = formatDate(calc.createdAt);
   const kpNumber = calc.id ? calc.id.slice(-6) : '000001';
 
@@ -180,20 +179,6 @@ export default function KPTemplate({ calc }) {
 
       {/* Тело страницы 1 */}
       <div style={{ padding: '24px 32px' }}>
-
-        {/* Предварительный расчёт — бейдж (inline-block работает в html2canvas) */}
-        {isQuick && (
-          <div style={{ marginBottom: 20 }}>
-            <span style={{
-              display: 'inline-block',
-              background: '#FEF3C7', border: '1px solid #FCD34D',
-              borderRadius: 8, padding: '5px 12px',
-              fontSize: 12, color: '#92400E', fontWeight: 600,
-            }}>
-              ⚡ Предварительный расчёт — уточняется после замера
-            </span>
-          </div>
-        )}
 
         {/* Заголовок */}
         <h1 style={{ fontSize: 28, fontWeight: 900, color: DARK, margin: '0 0 6px', lineHeight: 1.2 }}>
@@ -412,11 +397,6 @@ export default function KPTemplate({ calc }) {
 
         {/* Примечания */}
         <div style={{ marginTop: 24, fontSize: 11, color: '#9CA3AF', lineHeight: 1.6 }}>
-          {isQuick && (
-            <p style={{ marginBottom: 6 }}>
-              * Расчёт является предварительным и может быть уточнён после выезда замерщика.
-            </p>
-          )}
           <p>
             * Стоимость корпусов рассчитана по полному листу ЛДСП 16мм (2750×1830мм),
             включая распил, кромку и присадку.
