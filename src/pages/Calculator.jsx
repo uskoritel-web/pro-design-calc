@@ -126,6 +126,45 @@ function AdjustRow({ тип, значение, onТип, onЗначение, acc
   );
 }
 
+// ─── Валидация формы ──────────────────────────────────────────────────────────
+
+function validateForm(form) {
+  const issues = [];
+  const нижняя  = parseFloat(form.нижняя)  || 0;
+  const верхняя = parseFloat(form.верхняя) || 0;
+  const пеналы  = parseInt(form.пеналы)    || 0;
+
+  if (нижняя === 0 && верхняя === 0 && пеналы === 0)
+    issues.push({ level: 'error', message: 'Укажите хотя бы один параметр корпусов' });
+
+  if (нижняя > 8)
+    issues.push({ level: 'warning', message: 'Нижняя база больше 8 м — проверьте' });
+
+  if (нижняя > 0 && верхняя > нижняя * 1.3)
+    issues.push({ level: 'warning', message: 'Верхняя база заметно длиннее нижней — это корректно?' });
+
+  if (пеналы > 6)
+    issues.push({ level: 'warning', message: 'Больше 6 пеналов — нестандартно, проверьте' });
+
+  const totalФасадАреа = (form.фасады || []).reduce((s, f) => s + (parseFloat(f.площадь) || 0), 0);
+  if (нижняя > 0 && totalФасадАреа > 0 && totalФасадАреа < нижняя * 0.5)
+    issues.push({ level: 'warning', message: 'Площадь фасадов кажется маленькой для такой базы' });
+  if ((нижняя + верхняя) > 0 && totalФасадАреа > (нижняя + верхняя) * 1.5)
+    issues.push({ level: 'warning', message: 'Площадь фасадов кажется большой, проверьте' });
+
+  const ящики = (form.фурнитураПозиции || []).find(p => p.id === 'ящики');
+  if (ящики && (parseFloat(ящики.количество) || 0) === 0)
+    issues.push({ level: 'info', message: 'Ящики не указаны — будет использовано значение по умолчанию: 3' });
+
+  if (!form.клиент)
+    issues.push({ level: 'info', message: 'Клиент не указан — КП будет без имени' });
+
+  if ((parseFloat(form.монтажПроцент) || 0) === 0 && (parseFloat(form.доставка) || 0) === 0)
+    issues.push({ level: 'info', message: 'Монтаж и доставка = 0, это намеренно?' });
+
+  return issues;
+}
+
 // ─── Основной компонент ──────────────────────────────────────────────────────
 
 export default function Calculator() {
@@ -138,6 +177,8 @@ export default function Calculator() {
 
   const [form, setForm] = useState(() => defaultForm(settings));
   const [saved, setSaved] = useState(false);
+  const [validationIssues, setValidationIssues] = useState(null);
+  const [pendingAction, setPendingAction]         = useState(null);
 
   // Если в URL есть ?id=... — загружаем существующий расчёт из Supabase
   useEffect(() => {
@@ -239,17 +280,37 @@ export default function Calculator() {
     reader.readAsDataURL(file);
   };
 
-  // Сохранить расчёт
-  const handleSave = async () => {
+  // Фактическое сохранение (вызывается после прохождения валидации)
+  const doSave = async () => {
     await saveCalculation({ ...form, result });
     setSaved(true);
   };
 
-  // Сохранить и перейти к КП
-  const handleGenerateKP = async () => {
-    const calcToSave = { ...form, result };
-    await saveCalculation(calcToSave);
+  const doGenerateKP = async () => {
+    await saveCalculation({ ...form, result });
     window.location.href = `/kp?id=${form.id}`;
+  };
+
+  // Запуск валидации перед действием
+  const handleSave = () => {
+    const issues = validateForm(form);
+    if (issues.length === 0) { doSave(); return; }
+    setValidationIssues(issues);
+    setPendingAction('save');
+  };
+
+  const handleGenerateKP = () => {
+    const issues = validateForm(form);
+    if (issues.length === 0) { doGenerateKP(); return; }
+    setValidationIssues(issues);
+    setPendingAction('kp');
+  };
+
+  const executePendingAction = () => {
+    setValidationIssues(null);
+    if (pendingAction === 'save') doSave();
+    else if (pendingAction === 'kp') doGenerateKP();
+    setPendingAction(null);
   };
 
   const hasSheetPrice = settings.ценаЛиста > 0;
@@ -595,14 +656,17 @@ export default function Calculator() {
               </div>
             </Card>
 
-            {/* Блок: Монтаж и доставка */}
-            <Card title="Монтаж и доставка">
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-4">
+            {/* Блок: Прочие */}
+            <Card title="Прочие">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                 <Field label="Монтаж">
                   <NumInput value={form.монтажПроцент} onChange={v => set('монтажПроцент', v)} placeholder="15" suffix="%" />
                 </Field>
                 <Field label="Доставка">
                   <NumInput value={form.доставка} onChange={v => set('доставка', v)} placeholder="6000" suffix="₽" />
+                </Field>
+                <Field label="Технолог" hint="чертежи">
+                  <NumInput value={form.технолог ?? ''} onChange={v => set('технолог', v)} placeholder="0" suffix="₽" />
                 </Field>
               </div>
             </Card>
@@ -691,6 +755,9 @@ export default function Calculator() {
                   <ResultRow label="Мебель итого" value={fmt(result.итогоМебель)} />
                   <ResultRow label={`Монтаж (${result.монтажПроцент}%)`} value={fmt(result.монтаж)} small />
                   <ResultRow label="Доставка" value={fmt(result.доставка)} small />
+                  {result.технолог > 0 && (
+                    <ResultRow label="Технолог" value={fmt(result.технолог)} small />
+                  )}
 
                   <div className="border-t border-white/10 my-2" />
                   <ResultRow label="База" value={fmt(result.baseTotal)} accent="blue" />
@@ -738,6 +805,42 @@ export default function Calculator() {
                   )}
                 </div>
               </div>
+
+              {/* Панель валидации */}
+              {validationIssues && (
+                <div className="bg-white/5 border border-white/15 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-3 space-y-2.5">
+                    {validationIssues.map((issue, i) => (
+                      <div key={i} className={`flex items-start gap-2 text-sm ${
+                        issue.level === 'error'   ? 'text-red-400' :
+                        issue.level === 'warning' ? 'text-yellow-400' :
+                                                    'text-white/50'
+                      }`}>
+                        <span className="flex-shrink-0 font-bold">
+                          {issue.level === 'error' ? '✕' : issue.level === 'warning' ? '!' : 'i'}
+                        </span>
+                        <span>{issue.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-4 pb-3 flex gap-2">
+                    {!validationIssues.some(i => i.level === 'error') && (
+                      <button
+                        onClick={executePendingAction}
+                        className="flex-1 py-2 rounded-xl text-sm font-semibold bg-brand-blue text-white hover:bg-brand-blue/90 transition-colors"
+                      >
+                        Всё верно, продолжить
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setValidationIssues(null)}
+                      className="px-4 py-2 rounded-xl text-sm text-white/40 hover:text-white transition-colors border border-white/10"
+                    >
+                      {validationIssues.some(i => i.level === 'error') ? 'Закрыть' : 'Отмена'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Кнопки действий */}
               <div className="space-y-3">

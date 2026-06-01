@@ -321,11 +321,11 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Монтаж и доставка */}
+          {/* Прочие */}
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-white/10">
-              <h2 className="text-white font-bold">Монтаж и доставка (по умолчанию)</h2>
-              <p className="text-white/40 text-xs mt-1">Можно изменить для каждого расчёта отдельно</p>
+              <h2 className="text-white font-bold">Прочие</h2>
+              <p className="text-white/40 text-xs mt-1">Значения по умолчанию — можно изменить в каждом расчёте</p>
             </div>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Монтаж по умолчанию">
@@ -341,6 +341,14 @@ export default function Settings() {
                   value={settings.доставка}
                   onChange={v => set('доставка', v)}
                   placeholder="6000"
+                  suffix="₽"
+                />
+              </Field>
+              <Field label="Технолог (чертежи) по умолчанию">
+                <NumInput
+                  value={settings.технолог ?? 0}
+                  onChange={v => set('технолог', v)}
+                  placeholder="0"
                   suffix="₽"
                 />
               </Field>
