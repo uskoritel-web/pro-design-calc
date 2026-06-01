@@ -54,7 +54,8 @@ import { loadCalculationById } from '../utils/storage';
 export default function KP() {
   const [calc, setCalc] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true); // загрузка расчёта из Supabase
+  const [fetching, setFetching] = useState(true);
+  const [copied, setCopied] = useState(false);
   // Единственный ref — только на видимый предпросмотр
   const docRef = useRef(null);
 
@@ -166,6 +167,13 @@ export default function KP() {
 
   const handlePrint = () => window.print();
 
+  const handleCopyLink = async () => {
+    const url = `${window.location.origin}/kp-public?id=${calc.id}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   if (fetching) {
     return (
       <div className="min-h-screen bg-[#0D0D1A]">
@@ -223,6 +231,16 @@ export default function KP() {
               >
                 ← Изменить
               </a>
+              <button
+                onClick={handleCopyLink}
+                className={`flex-1 sm:flex-none border font-medium px-3 py-2 rounded-xl transition-colors text-xs sm:text-sm ${
+                  copied
+                    ? 'border-green-500/50 text-green-400'
+                    : 'border-white/20 hover:border-white/40 text-white/70 hover:text-white'
+                }`}
+              >
+                {copied ? '✓ Скопировано' : '🔗 Ссылка для клиента'}
+              </button>
               {!isNative && (
                 <button
                   onClick={handlePrint}
