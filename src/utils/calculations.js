@@ -5,9 +5,10 @@ export const fmt = (n) =>
   new Intl.NumberFormat('ru-RU').format(Math.round(n || 0)) + ' ₽';
 
 // Расчёт количества листов ЛДСП
-export function calcSheets(нижняя, верхняя, пеналы, коэф = 1.6) {
-  const базовыеЛисты = Math.ceil((нижняя + верхняя) / коэф);
-  return пеналы + базовыеЛисты;
+export function calcSheets(нижняя, верхняя, пеналы, коэфНиз = 1.8, коэфВерх = 3.0) {
+  const листыНиз = нижняя > 0 ? Math.ceil(нижняя / коэфНиз) : 0;
+  const листыВерх = верхняя > 0 ? Math.ceil(верхняя / коэфВерх) : 0;
+  return пеналы + листыНиз + листыВерх;
 }
 
 // Вычислить сумму наценки или скидки по типу и значению
@@ -25,7 +26,7 @@ export function calcTotal(data, settings) {
 
   // ── Корпуса ──
   const листы = (нижняя > 0 || верхняя > 0 || пеналы > 0)
-    ? calcSheets(нижняя, верхняя, пеналы, settings.коэф)
+    ? calcSheets(нижняя, верхняя, пеналы, settings.коэфНиз, settings.коэфВерх)
     : 0;
   const корпуса = листы * (settings.ценаЛиста || 0);
 

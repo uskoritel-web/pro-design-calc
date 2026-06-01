@@ -4,7 +4,8 @@ import { supabase } from './supabase';
 
 export const defaultSettings = {
   ценаЛиста: 0,
-  коэф: 1.6,
+  коэфНиз: 1.8,
+  коэфВерх: 3.0,
   монтажПроцент: 15,
   доставка: 6000,
   прайсФасадов: [
@@ -26,7 +27,14 @@ export async function loadSettings() {
     .single();
 
   if (error || !data) return { ...defaultSettings };
-  return { ...defaultSettings, ...data.data };
+  const saved = data.data;
+  // Миграция: старое поле коэф → коэфНиз/коэфВерх
+  if (saved.коэф !== undefined && saved.коэфНиз === undefined) {
+    saved.коэфНиз = defaultSettings.коэфНиз;
+    saved.коэфВерх = defaultSettings.коэфВерх;
+    delete saved.коэф;
+  }
+  return { ...defaultSettings, ...saved };
 }
 
 // Сохранить настройки

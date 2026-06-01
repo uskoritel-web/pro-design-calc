@@ -335,7 +335,7 @@ export default function Calculator() {
               {result.листы > 0 && (
                 <div className="mt-4 bg-white/5 rounded-xl px-4 py-3 flex items-center justify-between text-sm">
                   <span className="text-white/60">
-                    Расчёт: {form.пеналы || 0} пеналов + ⌈({form.нижняя || 0} + {form.верхняя || 0}) / {settings.коэф}⌉
+                    {form.пеналы || 0} пен. + ⌈{form.нижняя || 0}/{settings.коэфНиз}⌉ + ⌈{form.верхняя || 0}/{settings.коэфВерх}⌉
                   </span>
                   <span className="text-white font-bold">{result.листы} листов</span>
                 </div>

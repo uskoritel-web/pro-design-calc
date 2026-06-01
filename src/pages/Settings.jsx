@@ -108,20 +108,28 @@ export default function Settings() {
                 />
               </Field>
 
-              <Field
-                label="Коэффициент листов"
-                hint="метров базы на 1 лист (по умолч. 1.6, Антон может скорректировать)"
-              >
-                <NumInput
-                  value={settings.коэф}
-                  onChange={v => set('коэф', v)}
-                  placeholder="1.6"
-                  suffix="м/лист"
-                />
-              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Коэф. нижней базы" hint="м/лист">
+                  <NumInput
+                    value={settings.коэфНиз}
+                    onChange={v => set('коэфНиз', v)}
+                    placeholder="1.8"
+                    suffix="м/лист"
+                  />
+                </Field>
+                <Field label="Коэф. верхней базы" hint="м/лист">
+                  <NumInput
+                    value={settings.коэфВерх}
+                    onChange={v => set('коэфВерх', v)}
+                    placeholder="3.0"
+                    suffix="м/лист"
+                  />
+                </Field>
+              </div>
 
-              <div className="bg-white/5 rounded-xl px-4 py-3 text-xs text-white/40">
-                Формула: листы = пеналы + ⌈(нижняя + верхняя) / коэффициент⌉
+              <div className="bg-white/5 rounded-xl px-4 py-3 text-xs text-white/40 space-y-1">
+                <div>Формула: листы = пеналы + ⌈нижняя / коэф.нижней⌉ + ⌈верхняя / коэф.верхней⌉</div>
+                <div>Значения подобраны опытным путём. Уточнить после накопления статистики.</div>
               </div>
             </div>
           </div>
