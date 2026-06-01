@@ -84,6 +84,16 @@ export default function History() {
                       <p className="text-white/40 text-sm truncate">{calc.объект}</p>
                     )}
                     <p className="text-white/30 text-xs mt-1">{formatDate(calc.createdAt)}</p>
+                    {calc.last_notified_at && (
+                      <p className="text-brand-blue/70 text-xs mt-0.5">
+                        Клиент открывал — {new Date(calc.last_notified_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </p>
+                    )}
+                    {calc.confirmed_at && (
+                      <p className="text-green-400/80 text-xs mt-0.5">
+                        ✅ Подтверждён — {new Date(calc.confirmed_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </p>
+                    )}
                   </div>
 
                   {/* Сумма + удалить */}

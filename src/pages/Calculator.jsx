@@ -350,6 +350,16 @@ export default function Calculator() {
                 <Field label="Объект" hint="(необязательно)">
                   <TextInput value={form.объект} onChange={v => set('объект', v)} placeholder="Кухня, ул. Ленина 5" />
                 </Field>
+                <Field label="Срок действия КП" hint="по умолчанию +14 дней">
+                  <input
+                    type="date"
+                    value={form.срокДействия || ''}
+                    onChange={e => set('срокДействия', e.target.value)}
+                    className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                      text-white rounded-xl px-4 py-3 text-sm outline-none transition-colors
+                      [color-scheme:dark]"
+                  />
+                </Field>
               </div>
 
               {/* Загрузка фото объекта */}
