@@ -181,6 +181,10 @@ export function defaultForm(settings) {
     скидкаТип: 'none',
     скидка: '',
     срокДействия: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    трекингВкл: true,
+    подтверждениеВкл: true,
+    таймерВкл: true,
+    опросВкл: true,
     createdAt: new Date().toISOString(),
   };
 }

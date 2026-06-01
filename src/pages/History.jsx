@@ -94,6 +94,15 @@ export default function History() {
                         ✅ Подтверждён — {new Date(calc.confirmed_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </p>
                     )}
+                    {calc.feedback && (
+                      <p className="text-purple-400/80 text-xs mt-0.5">
+                        💬 {[
+                          { ok:'✅', bit:'😐', high:'😟' }[calc.feedback.цена],
+                          { complete:'✅', adjust:'✏️', missing:'🤔' }[calc.feedback.состав],
+                          { ready:'🤝', think:'⏳', looking:'🔍' }[calc.feedback.шаг],
+                        ].filter(Boolean).join(' · ')} Оставил отзыв
+                      </p>
+                    )}
                   </div>
 
                   {/* Сумма + удалить */}

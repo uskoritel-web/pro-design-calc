@@ -391,6 +391,35 @@ export default function Calculator() {
                   </button>
                 )}
               </Field>
+
+              {/* Настройки онлайн КП */}
+              <div className="mt-5 pt-5 border-t border-white/10">
+                <div className="text-xs text-white/40 font-semibold uppercase tracking-wide mb-3">
+                  Онлайн КП для клиента
+                </div>
+                <div className="space-y-3">
+                  {[
+                    ['трекингВкл',        'Уведомление когда клиент открыл'],
+                    ['подтверждениеВкл',  'Кнопка «Подтвердить предложение»'],
+                    ['таймерВкл',         'Таймер срока действия'],
+                    ['опросВкл',          'Мини-опрос: 3 вопроса клиенту'],
+                  ].map(([field, label]) => (
+                    <div key={field} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-white/70">{label}</span>
+                      <button
+                        onClick={() => set(field, form[field] === false ? true : false)}
+                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                          form[field] !== false ? 'bg-brand-blue' : 'bg-white/15'
+                        }`}
+                      >
+                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
+                          form[field] !== false ? 'left-5' : 'left-0.5'
+                        }`} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </Card>
 
             {/* Блок: Корпуса */}
