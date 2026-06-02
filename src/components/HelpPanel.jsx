@@ -1,10 +1,8 @@
 // Панель справки — открывается кнопкой «?» в шапке
 import { getTips } from '../utils/hints';
-import { useLocation } from 'react-router-dom';
 
 export default function HelpPanel({ onClose }) {
-  const location = useLocation();
-  const tips = getTips(location.pathname);
+  const tips = getTips(window.location.pathname);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-start justify-center z-50 p-4 pt-20 overflow-auto" onClick={onClose}>
