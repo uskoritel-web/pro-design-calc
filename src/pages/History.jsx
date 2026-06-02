@@ -1,6 +1,7 @@
 // Страница «Проекты» — две вкладки: очередь на расчёт и готовые расчёты
 import { useState, useEffect } from 'react';
 import AppHeader from '../components/AppHeader';
+import HintBubble from '../components/HintBubble';
 import { loadCalculations, deleteCalculation, loadProjects, saveProject, deleteProject } from '../utils/storage';
 import { fmt } from '../utils/calculations';
 
@@ -385,7 +386,7 @@ export default function History() {
     : calcs;
 
   return (
-    <div className="min-h-screen bg-[#0D0D1A]">
+    <div className="min-h-screen bg-gray-900">
       <AppHeader />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -448,6 +449,15 @@ export default function History() {
           /* ── Вкладка «Надо посчитать» ── */
           tab === 'queue' ? (
             <div className="space-y-3">
+
+              {/* Подсказка если нет проектов */}
+              {projects.length === 0 && !showForm && (
+                <HintBubble hintKey="projects-empty" icon="📋">
+                  <strong>Очередь проектов</strong> — сюда добавляйте заявки клиентов. Нажмите «+ Добавить», укажите клиента, номер и пожелания.
+                  После этого можно создать тему в Telegram — уведомления пойдут туда.
+                </HintBubble>
+              )}
+
               {showForm && (
                 <ProjectForm
                   initial={editingProject}

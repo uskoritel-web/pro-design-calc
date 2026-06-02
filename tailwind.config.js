@@ -8,9 +8,9 @@ export default {
     extend: {
       colors: {
         brand: {
-          blue: '#1565C0',
-          orange: '#E84B1A',
-          dark: '#1A1A2E',
+          blue: '#3b82f6',
+          orange: '#f97316',
+          dark: '#1a1a1a',
         }
       },
       fontFamily: {

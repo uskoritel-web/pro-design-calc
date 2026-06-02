@@ -1,6 +1,7 @@
 // Страница настроек: прайс на материалы, коэффициенты, значения по умолчанию
 import { useState, useEffect } from 'react';
 import AppHeader from '../components/AppHeader';
+import HintBubble from '../components/HintBubble';
 import { loadSettings, saveSettings, defaultSettings } from '../utils/storage';
 
 function Field({ label, hint, children }) {
@@ -103,7 +104,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D0D1A]">
+    <div className="min-h-screen bg-gray-900">
       <AppHeader />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -111,6 +112,14 @@ export default function Settings() {
         <p className="text-white/50 text-sm mb-8">
           Заполните цены один раз — приложение будет подставлять их в каждый расчёт автоматически.
         </p>
+
+        {/* Подсказка если прайс пустой */}
+        {!settings.ценаЛиста && (
+          <HintBubble hintKey="settings-empty-price" icon="💡">
+            <strong>Начните с цены листа ЛДСП</strong> — это основа всех расчётов. Укажите полную стоимость (распил + кромка + присадка).
+            Затем заполните прайс фасадов и фурнитуры.
+          </HintBubble>
+        )}
 
         <div className="space-y-6">
 

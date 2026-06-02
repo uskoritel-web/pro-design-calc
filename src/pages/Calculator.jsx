@@ -1,6 +1,7 @@
 // Главная страница — расчёт стоимости мебели
 import { useState, useMemo, useEffect } from 'react';
 import AppHeader from '../components/AppHeader';
+import HintBubble from '../components/HintBubble';
 import { calcTotal, calcTableTopCutting, fmt } from '../utils/calculations';
 import { loadSettings, saveSettings, defaultSettings, defaultForm, saveCalculation, loadCalculationById } from '../utils/storage';
 
@@ -327,10 +328,16 @@ export default function Calculator() {
   const hasSheetPrice = settings.ценаЛиста > 0;
 
   return (
-    <div className="min-h-screen bg-[#0D0D1A]">
+    <div className="min-h-screen bg-gray-900">
       <AppHeader />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8">
+
+        {/* Inline-подсказка при первом визите */}
+        <HintBubble hintKey="calc-first-visit" icon="👋">
+          <strong>Как начать:</strong> заполните базы (длина гарнитура), выберите материал фасадов, укажите фурнитуру.
+          Нажмите <strong>?</strong> в шапке если нужна подробная инструкция.
+        </HintBubble>
 
         {/* Предупреждение если не заполнены настройки */}
         {!hasSheetPrice && (

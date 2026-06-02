@@ -193,12 +193,12 @@ export default function Landing() {
   const [showAndroid, setShowAndroid] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#0D0D1A]">
+    <div className="min-h-screen bg-gray-900">
       {showAndroid && <AndroidModal onClose={() => setShowAndroid(false)} />}
       {showIphone && <IphoneModal onClose={() => setShowIphone(false)} />}
 
       {/* Навигация */}
-      <nav className="border-b border-white/10 backdrop-blur-sm sticky top-0 z-40 bg-[#0D0D1A]/90">
+      <nav className="border-b border-white/10 backdrop-blur-sm sticky top-0 z-40 bg-gray-900/90">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <Logo />
           <a

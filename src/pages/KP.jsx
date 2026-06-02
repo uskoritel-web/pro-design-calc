@@ -176,7 +176,7 @@ export default function KP() {
 
   if (fetching) {
     return (
-      <div className="min-h-screen bg-[#0D0D1A]">
+      <div className="min-h-screen bg-gray-900">
         <AppHeader />
         <div className="flex items-center justify-center py-32 text-white/40">
           Загрузка...
@@ -187,7 +187,7 @@ export default function KP() {
 
   if (!calc) {
     return (
-      <div className="min-h-screen bg-[#0D0D1A]">
+      <div className="min-h-screen bg-gray-900">
         <AppHeader />
         <div className="flex flex-col items-center justify-center py-32 text-center">
           <div className="text-5xl mb-4">📄</div>
@@ -204,14 +204,14 @@ export default function KP() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0D0D1A]">
+    <div className="min-h-screen bg-gray-900">
 
       {/* Шапка — скрыта при печати */}
       <div className="print-hidden">
         <AppHeader />
 
         {/* Панель управления */}
-        <div className="bg-[#0D0D1A] border-b border-white/10 py-3 px-4 sm:px-6 sticky top-[57px] z-40">
+        <div className="bg-gray-900 border-b border-white/10 py-3 px-4 sm:px-6 sticky top-[57px] z-40">
           <div className="max-w-4xl mx-auto">
             {/* Заголовок */}
             <div className="mb-3">
