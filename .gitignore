@@ -27,3 +27,8 @@ dist-ssr
 android/.gradle
 android/app/build
 android/build
+
+# Backups (contain client data - do not commit)
+backups/
+*.backup
+*.dump
