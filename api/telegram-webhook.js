@@ -86,13 +86,17 @@ export default async function handler(req, res) {
   // Загружаем непривязанные проекты
   const resp  = await fetch(`${SB_URL}/rest/v1/projects?select=id,data&order=created_at.desc`, { headers: sbH });
   const rows  = await resp.json();
-  const unlinked = (rows || []).filter(r => !r.data?.threadId);
+  const all      = rows || [];
+  const unlinked = all.filter(r => !r.data?.threadId);
 
   if (unlinked.length === 0) {
+    const SITE = 'https://pro-design-calc.vercel.app';
+    const text = all.length === 0
+      ? `На сайте ещё нет ни одного проекта.\n\nЧтобы привязать эту тему:\n1. Откройте <a href="${SITE}/history">Проекты</a> на сайте\n2. Нажмите «+ Добавить» и заполните карточку\n3. В разделе «Тема в Telegram» выберите «Тема уже есть»\n4. Вернитесь сюда и напишите /link — появятся кнопки с проектами`
+      : `Все проекты уже привязаны к темам ✅\n\nЕсли нужно добавить новый — сначала создайте карточку на сайте.`;
     await tgPost('sendMessage', TG_TOKEN, {
-      chat_id: chatId,
-      message_thread_id: threadId,
-      text: 'Все проекты уже привязаны к темам ✅',
+      chat_id: chatId, message_thread_id: threadId,
+      text, parse_mode: 'HTML', disable_web_page_preview: true,
     });
     return res.status(200).end();
   }
