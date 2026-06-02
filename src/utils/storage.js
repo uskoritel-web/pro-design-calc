@@ -137,6 +137,29 @@ export async function deleteCalculation(id) {
   if (error) console.error('Supabase deleteCalculation:', error);
 }
 
+// ── Проекты (очередь на расчёт) ─────────────────────────────────────────────
+
+export async function loadProjects() {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('data, created_at')
+    .order('created_at', { ascending: false });
+  if (error) { console.error('Supabase loadProjects:', error); return []; }
+  return data.map(row => row.data);
+}
+
+export async function saveProject(project) {
+  const { error } = await supabase
+    .from('projects')
+    .upsert({ id: project.id, data: project }, { onConflict: 'id' });
+  if (error) console.error('Supabase saveProject:', error);
+}
+
+export async function deleteProject(id) {
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) console.error('Supabase deleteProject:', error);
+}
+
 // ── Начальная форма расчёта ──────────────────────────────────────────────────
 
 export function defaultForm(settings) {

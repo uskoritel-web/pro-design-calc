@@ -42,7 +42,7 @@ export default function AppHeader() {
 
         <nav className="flex items-center gap-0 sm:gap-1">
           <NavLink href="/app" icon="🧮">Расчёт</NavLink>
-          <NavLink href="/history" icon="📋">История</NavLink>
+          <NavLink href="/history" icon="📁">Проекты</NavLink>
           <NavLink href="/settings" icon="⚙️">Настройки</NavLink>
         </nav>
       </div>

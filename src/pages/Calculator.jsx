@@ -180,16 +180,25 @@ export default function Calculator() {
   const [validationIssues, setValidationIssues] = useState(null);
   const [pendingAction, setPendingAction]         = useState(null);
 
-  // Если в URL есть ?id=... — загружаем существующий расчёт из Supabase
+  // Загружаем существующий расчёт или предзаполняем из URL-параметров проекта
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('id');
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
     if (id) {
       loadCalculationById(id).then(existing => {
-        if (existing) {
-          // Сливаем с defaultForm чтобы добавить новые поля которых нет в старых расчётах
-          setForm(f => ({ ...f, ...existing }));
-        }
+        if (existing) setForm(f => ({ ...f, ...existing }));
       });
+    } else {
+      // Предзаполнение из ссылки «Начать расчёт» со страницы проектов
+      const клиент = params.get('клиент');
+      const объект = params.get('объект');
+      if (клиент || объект) {
+        setForm(f => ({
+          ...f,
+          ...(клиент ? { клиент } : {}),
+          ...(объект ? { объект } : {}),
+        }));
+      }
     }
   }, []);
 
