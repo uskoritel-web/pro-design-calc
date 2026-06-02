@@ -40,7 +40,9 @@ export default async function handler(req, res) {
   if (type === 'new_project') {
     if (!projectId || !projectData) return res.status(400).json({ error: 'Missing projectId or projectData' });
 
-    const topicName = [projectData.клиент, projectData.объект].filter(Boolean).join(' — ') || 'Новый проект';
+    // Формат: "Иванов — Кухня · ПД-156" (импровизированное название · номер)
+    const namePart   = [projectData.клиент, projectData.объект].filter(Boolean).join(' — ');
+    const topicName  = [namePart || 'Новый проект', projectData.номер].filter(Boolean).join(' · ');
 
     const topicResp = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/createForumTopic`, {
       method: 'POST',
@@ -65,6 +67,7 @@ export default async function handler(req, res) {
     });
 
     const lines = [`📋 <b>Проект создан</b>`];
+    if (projectData.номер)  lines.push(`🔢 ${projectData.номер}`);
     if (projectData.клиент) lines.push(`👤 ${projectData.клиент}`);
     if (projectData.объект) lines.push(`📍 ${projectData.объект}`);
     if (projectData.заметки) lines.push(`\n💬 ${projectData.заметки}`);

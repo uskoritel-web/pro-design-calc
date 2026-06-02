@@ -23,52 +23,70 @@ function formatDateShort(iso) {
 
 // ─── Форма добавления/редактирования проекта ────────────────────────────────
 
-function ProjectForm({ initial, onSave, onCancel }) {
-  const [клиент, setКлиент]   = useState(initial?.клиент || '');
-  const [объект, setОбъект]   = useState(initial?.объект || '');
-  const [заметки, setЗаметки] = useState(initial?.заметки || '');
-  const [ссылки, setCсылки]   = useState(initial?.ссылки || []);
+function ProjectForm({ initial, onSave, onCancel, saving }) {
+  const [клиент, setКлиент]   = useState(initial?.клиент   || '');
+  const [объект, setОбъект]   = useState(initial?.объект   || '');
+  const [номер,  setНомер]    = useState(initial?.номер    || '');
+  const [заметки, setЗаметки] = useState(initial?.заметки  || '');
+  const [ссылки, setCсылки]   = useState(initial?.ссылки   || []);
+  // тгРежим — только для новых проектов: create / existing / skip
+  const [тгРежим, setТгРежим] = useState(
+    initial?.threadId ? 'skip' : 'create'
+  );
+
+  const isNew = !initial;
 
   const addLink = () => setCсылки(s => [...s, { id: Date.now(), заголовок: '', url: '' }]);
   const updateLink = (id, field, val) => setCсылки(s => s.map(l => l.id === id ? { ...l, [field]: val } : l));
   const removeLink = (id) => setCсылки(s => s.filter(l => l.id !== id));
 
   const handleSave = () => {
-    if (!клиент.trim() && !объект.trim()) return;
+    if (!клиент.trim() && !объект.trim() && !номер.trim()) return;
     onSave({
-      id: initial?.id || Date.now().toString(),
-      клиент: клиент.trim(),
-      объект: объект.trim(),
-      заметки: заметки.trim(),
-      ссылки: ссылки.filter(l => l.url.trim()),
+      id:        initial?.id || Date.now().toString(),
+      клиент:    клиент.trim(),
+      объект:    объект.trim(),
+      номер:     номер.trim(),
+      заметки:   заметки.trim(),
+      ссылки:    ссылки.filter(l => l.url.trim()),
+      threadId:  initial?.threadId  || null,
+      topicUrl:  initial?.topicUrl  || null,
       createdAt: initial?.createdAt || new Date().toISOString(),
-    });
+    }, тгРежим);
   };
 
   const inputCls = "w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue text-white placeholder-white/30 rounded-xl px-4 py-3 text-sm outline-none transition-colors";
 
   return (
     <div className="bg-white/5 border border-brand-blue/30 rounded-2xl p-5 space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+      {/* Номер и клиент/объект */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs text-white/50 mb-1.5">Клиент</label>
-          <input value={клиент} onChange={e => setКлиент(e.target.value)} placeholder="Иванов И.И." className={inputCls} />
+          <label className="block text-xs text-white/50 mb-1.5">
+            Номер проекта
+            <span className="ml-1 text-white/25">(из отдела дизайна)</span>
+          </label>
+          <input value={номер} onChange={e => setНомер(e.target.value)}
+            placeholder="ПД-156" className={inputCls} />
         </div>
         <div>
-          <label className="block text-xs text-white/50 mb-1.5">Объект</label>
-          <input value={объект} onChange={e => setОбъект(e.target.value)} placeholder="Кухня, ул. Ленина 5" className={inputCls} />
+          <label className="block text-xs text-white/50 mb-1.5">Клиент</label>
+          <input value={клиент} onChange={e => setКлиент(e.target.value)}
+            placeholder="Иванов И.И." className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-white/50 mb-1.5">Объект / описание</label>
+          <input value={объект} onChange={e => setОбъект(e.target.value)}
+            placeholder="Кухня, ул. Ленина 5" className={inputCls} />
         </div>
       </div>
 
       <div>
         <label className="block text-xs text-white/50 mb-1.5">Заметки / пожелания заказчика</label>
-        <textarea
-          value={заметки}
-          onChange={e => setЗаметки(e.target.value)}
+        <textarea value={заметки} onChange={e => setЗаметки(e.target.value)}
           placeholder="Бюджет ~300к, хотят МДФ эмаль, угловая кухня, тёмные фасады..."
-          rows={3}
-          className={`${inputCls} resize-none`}
-        />
+          rows={3} className={`${inputCls} resize-none`} />
       </div>
 
       <div>
@@ -76,18 +94,11 @@ function ProjectForm({ initial, onSave, onCancel }) {
         <div className="space-y-2">
           {ссылки.map(link => (
             <div key={link.id} className="flex gap-2 items-center">
-              <input
-                value={link.заголовок}
-                onChange={e => updateLink(link.id, 'заголовок', e.target.value)}
-                placeholder="Название (напр. Дизайн-проект)"
-                className="w-36 bg-white/5 border border-white/15 focus:border-brand-blue text-white placeholder-white/25 rounded-xl px-3 py-2.5 text-sm outline-none"
-              />
-              <input
-                value={link.url}
-                onChange={e => updateLink(link.id, 'url', e.target.value)}
+              <input value={link.заголовок} onChange={e => updateLink(link.id, 'заголовок', e.target.value)}
+                placeholder="Дизайн-проект" className="w-32 bg-white/5 border border-white/15 focus:border-brand-blue text-white placeholder-white/25 rounded-xl px-3 py-2.5 text-sm outline-none" />
+              <input value={link.url} onChange={e => updateLink(link.id, 'url', e.target.value)}
                 placeholder="https://... или ссылка на сообщение в ТГ"
-                className="flex-1 bg-white/5 border border-white/15 focus:border-brand-blue text-white placeholder-white/25 rounded-xl px-3 py-2.5 text-sm outline-none"
-              />
+                className="flex-1 bg-white/5 border border-white/15 focus:border-brand-blue text-white placeholder-white/25 rounded-xl px-3 py-2.5 text-sm outline-none" />
               <button onClick={() => removeLink(link.id)} className="text-white/30 hover:text-red-400 text-xl w-8 flex-shrink-0">×</button>
             </div>
           ))}
@@ -95,15 +106,39 @@ function ProjectForm({ initial, onSave, onCancel }) {
             + Добавить ссылку
           </button>
         </div>
-        <p className="text-white/25 text-xs mt-1.5">
-          Ссылки на Яндекс Диск, дизайн-проект, сообщения из Telegram-группы — всё подходит
-        </p>
+        <p className="text-white/25 text-xs mt-1.5">Яндекс Диск, дизайн-проект, ссылки из ТГ — всё подходит</p>
       </div>
 
+      {/* Telegram — только для новых проектов (при редактировании статус показывается на карточке) */}
+      {isNew && (
+        <div className="bg-white/3 border border-white/8 rounded-xl p-4 space-y-2.5">
+          <div className="text-xs text-white/50 font-medium mb-1">Тема в Telegram</div>
+          {[
+            ['create',   '✈️ Создать новую тему при сохранении'],
+            ['existing', '🔗 Тема уже есть — привяжу командой /link'],
+            ['skip',     '—  Без темы пока'],
+          ].map(([val, label]) => (
+            <label key={val} className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input type="radio" name="tgMode" value={val} checked={тгРежим === val}
+                onChange={() => setТгРежим(val)} className="accent-brand-blue w-3.5 h-3.5" />
+              <span className={`text-sm ${тгРежим === val ? 'text-white' : 'text-white/50'}`}>{label}</span>
+            </label>
+          ))}
+          {тгРежим === 'existing' && (
+            <p className="text-white/30 text-xs mt-1 pl-5">
+              После сохранения напишите <span className="font-mono text-white/50">/link</span> в нужной теме — бот покажет кнопки с проектами
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-2 pt-1">
-        <button onClick={handleSave}
-          className="flex-1 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-white font-semibold rounded-xl text-sm transition-colors">
-          {initial ? 'Сохранить' : 'Добавить проект'}
+        <button onClick={handleSave} disabled={saving}
+          className="flex-1 py-2.5 bg-brand-blue hover:bg-brand-blue/90 disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+          {saving
+            ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />{isNew && тгРежим === 'create' ? 'Сохраняем и создаём тему…' : 'Сохраняем…'}</>
+            : (initial ? 'Сохранить изменения' : 'Добавить проект')
+          }
         </button>
         <button onClick={onCancel}
           className="px-5 py-2.5 border border-white/15 text-white/50 hover:text-white rounded-xl text-sm transition-colors">
@@ -147,9 +182,16 @@ function ProjectCard({ project, onDelete, onEdit, onCreateTopic }) {
         {/* Заголовок */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-white font-bold truncate">
-              {project.клиент || project.объект || 'Без названия'}
-            </h3>
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <h3 className="text-white font-bold truncate">
+                {project.клиент || project.объект || 'Без названия'}
+              </h3>
+              {project.номер && (
+                <span className="text-xs bg-white/10 text-white/60 px-2 py-0.5 rounded-full flex-shrink-0 font-mono">
+                  {project.номер}
+                </span>
+              )}
+            </div>
             {project.клиент && project.объект && (
               <p className="text-white/40 text-sm truncate">{project.объект}</p>
             )}
@@ -294,12 +336,21 @@ export default function History() {
   };
 
   // ── Проекты ──
-  const handleSaveProject = async (project) => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveProject = async (project, тгРежим = 'skip') => {
+    setSaving(true);
     await saveProject(project);
     setProjects(prev => {
       const exists = prev.find(p => p.id === project.id);
       return exists ? prev.map(p => p.id === project.id ? project : p) : [project, ...prev];
     });
+
+    if (тгРежим === 'create') {
+      await handleCreateTopic(project);
+    }
+
+    setSaving(false);
     setShowForm(false);
     setEditing(null);
   };
@@ -374,6 +425,7 @@ export default function History() {
                   initial={editingProject}
                   onSave={handleSaveProject}
                   onCancel={() => { setShowForm(false); setEditing(null); }}
+                  saving={saving}
                 />
               )}
 
@@ -397,6 +449,7 @@ export default function History() {
                       initial={p}
                       onSave={handleSaveProject}
                       onCancel={() => { setEditing(null); }}
+                      saving={saving}
                     />
                   ) : (
                     <ProjectCard
