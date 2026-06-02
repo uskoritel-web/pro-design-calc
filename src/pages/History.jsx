@@ -304,6 +304,7 @@ export default function History() {
   const [loading, setLoading]         = useState(true);
   const [showForm, setShowForm]       = useState(false);
   const [editingProject, setEditing]  = useState(null);
+  const [search, setSearch]           = useState('');
 
   useEffect(() => {
     Promise.all([loadCalculations(), loadProjects()]).then(([c, p]) => {
@@ -369,6 +370,20 @@ export default function History() {
     setCalcs(prev => prev.filter(c => c.id !== id));
   };
 
+  // Фильтрация по поисковому запросу
+  const q = search.trim().toLowerCase();
+  const filteredProjects = q
+    ? projects.filter(p =>
+        (p.клиент || '').toLowerCase().includes(q) ||
+        (p.объект || '').toLowerCase().includes(q) ||
+        (p.номер  || '').toLowerCase().includes(q))
+    : projects;
+  const filteredCalcs = q
+    ? calcs.filter(c =>
+        (c.клиент || '').toLowerCase().includes(q) ||
+        (c.объект || '').toLowerCase().includes(q))
+    : calcs;
+
   return (
     <div className="min-h-screen bg-[#0D0D1A]">
       <AppHeader />
@@ -393,9 +408,22 @@ export default function History() {
           )}
         </div>
 
+        {/* Поиск */}
+        <div className="relative mb-4">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Поиск по клиенту, объекту, номеру…"
+            className="w-full bg-white/5 border border-white/15 focus:border-brand-blue text-white placeholder-white/30 rounded-xl px-4 py-2.5 text-sm outline-none transition-colors pr-9"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white text-xl leading-none">×</button>
+          )}
+        </div>
+
         {/* Вкладки */}
         <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit mb-6">
-          {[['queue', `Надо посчитать`, projects.length], ['done', 'Готовые расчёты', calcs.length]].map(([key, label, count]) => (
+          {[['queue', `Надо посчитать`, filteredProjects.length], ['done', 'Готовые расчёты', filteredCalcs.length]].map(([key, label, count]) => (
             <button
               key={key}
               onClick={() => { setTab(key); setShowForm(false); setEditing(null); }}
@@ -429,7 +457,7 @@ export default function History() {
                 />
               )}
 
-              {projects.length === 0 && !showForm ? (
+              {filteredProjects.length === 0 && !showForm ? (
                 <div className="text-center py-24">
                   <div className="text-5xl mb-4">📋</div>
                   <h2 className="text-xl font-bold text-white/60 mb-2">Очередь пуста</h2>
@@ -442,7 +470,7 @@ export default function History() {
                   </button>
                 </div>
               ) : (
-                projects.map(p => (
+                filteredProjects.map(p => (
                   editingProject?.id === p.id ? (
                     <ProjectForm
                       key={p.id}
@@ -467,14 +495,14 @@ export default function History() {
           /* ── Вкладка «Готовые расчёты» ── */
           ) : (
             <div className="space-y-3">
-              {calcs.length === 0 ? (
+              {filteredCalcs.length === 0 ? (
                 <div className="text-center py-24">
                   <div className="text-5xl mb-4">🧮</div>
                   <h2 className="text-xl font-bold text-white/60 mb-2">Расчётов пока нет</h2>
                   <p className="text-white/30 text-sm mb-6">Сохраните первый расчёт в калькуляторе</p>
                   <a href="/app" className="text-brand-blue hover:underline text-sm">Открыть калькулятор →</a>
                 </div>
-              ) : calcs.map(calc => (
+              ) : filteredCalcs.map(calc => (
                 <div
                   key={calc.id}
                   onClick={() => window.location.href = `/kp?id=${calc.id}`}
