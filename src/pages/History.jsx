@@ -116,8 +116,10 @@ function ProjectForm({ initial, onSave, onCancel }) {
 
 // ─── Карточка проекта из очереди ─────────────────────────────────────────────
 
-function ProjectCard({ project, onDelete, onEdit }) {
-  const [expanded, setExpanded] = useState(false);
+function ProjectCard({ project, onDelete, onEdit, onCreateTopic }) {
+  const [expanded, setExpanded]   = useState(false);
+  const [copied, setCopied]       = useState(false);
+  const [creating, setCreating]   = useState(false);
   const hasDetails = project.заметки || (project.ссылки?.length > 0);
 
   const startCalcUrl = `/app?${new URLSearchParams({
@@ -125,9 +127,23 @@ function ProjectCard({ project, onDelete, onEdit }) {
     ...(project.объект ? { объект: project.объект } : {}),
   }).toString()}`;
 
+  const handleCreateTopic = async () => {
+    setCreating(true);
+    await onCreateTopic(project);
+    setCreating(false);
+  };
+
+  const handleCopyLinkCmd = async () => {
+    await navigator.clipboard.writeText(`/link ${project.id.slice(-6)}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
       <div className="px-4 sm:px-5 py-4">
+
+        {/* Заголовок */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h3 className="text-white font-bold truncate">
@@ -139,24 +155,58 @@ function ProjectCard({ project, onDelete, onEdit }) {
             <p className="text-white/25 text-xs mt-1">{formatDateShort(project.createdAt)}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={onEdit}
-              className="text-white/30 hover:text-white/70 transition-colors text-sm px-2 py-1"
-            >
-              ✎
-            </button>
-            <button
-              onClick={onDelete}
-              className="text-white/20 hover:text-red-400 transition-colors text-2xl leading-none w-8 h-8 flex items-center justify-center"
-            >
-              ×
-            </button>
+            <button onClick={onEdit} className="text-white/30 hover:text-white/70 transition-colors text-sm px-2 py-1">✎</button>
+            <button onClick={onDelete} className="text-white/20 hover:text-red-400 transition-colors text-2xl leading-none w-8 h-8 flex items-center justify-center">×</button>
           </div>
+        </div>
+
+        {/* Статус темы Telegram */}
+        <div className="mt-3">
+          {project.threadId ? (
+            <a
+              href={project.topicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-green-400/80 hover:text-green-400 transition-colors"
+            >
+              ✅ Тема в Telegram — открыть ↗
+            </a>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleCreateTopic}
+                disabled={creating}
+                className="inline-flex items-center gap-1.5 text-xs bg-white/8 hover:bg-white/12 border border-white/15 hover:border-brand-blue/50 text-white/70 hover:text-white px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+              >
+                {creating ? (
+                  <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Создаём тему…</>
+                ) : (
+                  <>✈️ Создать тему в Telegram</>
+                )}
+              </button>
+              <button
+                onClick={handleCopyLinkCmd}
+                title="Если тема уже создана вручную — вставьте эту команду в неё"
+                className={`inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                  copied
+                    ? 'border-green-500/40 text-green-400'
+                    : 'border-white/10 text-white/30 hover:text-white/60 hover:border-white/20'
+                }`}
+              >
+                {copied ? '✓ Скопировано' : '📋 Привязать вручную'}
+              </button>
+              {copied && (
+                <span className="text-xs text-white/30">
+                  Вставь <span className="text-white/50 font-mono">/link {project.id.slice(-6)}</span> в нужную тему
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Заметки превью */}
         {project.заметки && !expanded && (
-          <p className="text-white/40 text-sm mt-2 line-clamp-2">{project.заметки}</p>
+          <p className="text-white/40 text-sm mt-2.5 line-clamp-2">{project.заметки}</p>
         )}
 
         {/* Развёрнутые детали */}
@@ -173,13 +223,8 @@ function ProjectCard({ project, onDelete, onEdit }) {
                 <div className="text-xs text-white/40 mb-1.5 font-medium">Ссылки</div>
                 <div className="space-y-1">
                   {project.ссылки.map((link, i) => (
-                    <a
-                      key={i}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-brand-blue hover:underline text-sm"
-                    >
+                    <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-brand-blue hover:underline text-sm">
                       🔗 {link.заголовок || link.url}
                     </a>
                   ))}
@@ -192,18 +237,13 @@ function ProjectCard({ project, onDelete, onEdit }) {
         {/* Кнопки */}
         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
           {hasDetails && (
-            <button
-              onClick={() => setExpanded(e => !e)}
-              className="text-white/40 hover:text-white/60 text-xs transition-colors"
-            >
+            <button onClick={() => setExpanded(e => !e)} className="text-white/40 hover:text-white/60 text-xs transition-colors">
               {expanded ? '↑ Свернуть' : '↓ Подробнее'}
             </button>
           )}
           <div className="flex-1" />
-          <a
-            href={startCalcUrl}
-            className="bg-brand-blue hover:bg-brand-blue/90 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
-          >
+          <a href={startCalcUrl}
+            className="bg-brand-blue hover:bg-brand-blue/90 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors">
             Начать расчёт →
           </a>
         </div>
@@ -229,6 +269,28 @@ export default function History() {
       setLoading(false);
     });
   }, []);
+
+  // ── Telegram тема ──
+  const handleCreateTopic = async (project) => {
+    try {
+      const resp = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'new_project', projectId: project.id, projectData: project }),
+      });
+      const data = await resp.json();
+      if (data.ok && data.threadId) {
+        setProjects(prev => prev.map(p =>
+          p.id === project.id ? { ...p, threadId: data.threadId, topicUrl: data.topicUrl } : p
+        ));
+      } else {
+        alert(`Не удалось создать тему: ${data.error || 'неизвестная ошибка'}\n\nПроверьте что бот добавлен в группу как администратор с правом управления темами.`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Ошибка при создании темы. Попробуйте ещё раз.');
+    }
+  };
 
   // ── Проекты ──
   const handleSaveProject = async (project) => {
@@ -341,6 +403,7 @@ export default function History() {
                       project={p}
                       onDelete={() => handleDeleteProject(p.id)}
                       onEdit={() => { setEditing(p); setShowForm(false); }}
+                      onCreateTopic={handleCreateTopic}
                     />
                   )
                 ))
