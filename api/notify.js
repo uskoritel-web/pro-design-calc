@@ -7,8 +7,10 @@ const FEEDBACK_LABELS = {
   шаг:    { ready: 'Готов к следующему шагу 🤝', think: 'Нужно подумать ⏳', looking: 'Смотрю другие варианты 🔍' },
 };
 
+const SITE = 'https://pro-design-calc.vercel.app';
+
 async function tgSend(token, chatId, text, threadId = null) {
-  const body = { chat_id: chatId, text, parse_mode: 'HTML' };
+  const body = { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true };
   if (threadId) body.message_thread_id = Number(threadId);
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
@@ -40,7 +42,6 @@ export default async function handler(req, res) {
 
     const topicName = [projectData.клиент, projectData.объект].filter(Boolean).join(' — ') || 'Новый проект';
 
-    // Создаём тему (форум должен быть включён и бот должен быть админом)
     const topicResp = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/createForumTopic`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -52,13 +53,10 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'Не удалось создать тему', details: topicData.description });
     }
 
-    const threadId = topicData.result.message_thread_id;
-
-    // URL темы: chat_id вида -100XXXXXXXXXX → убираем -100 → t.me/c/XXXXXXXXXX/threadId
+    const threadId   = topicData.result.message_thread_id;
     const absoluteId = String(TG_CHAT).replace(/^-100/, '');
-    const topicUrl = `https://t.me/c/${absoluteId}/${threadId}`;
+    const topicUrl   = `https://t.me/c/${absoluteId}/${threadId}`;
 
-    // Сохраняем threadId и topicUrl в проект
     const updated = { ...projectData, threadId, topicUrl };
     await fetch(`${SB_URL}/rest/v1/projects?id=eq.${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
@@ -66,7 +64,6 @@ export default async function handler(req, res) {
       body: JSON.stringify({ data: updated }),
     });
 
-    // Первое сообщение в теме — карточка проекта
     const lines = [`📋 <b>Проект создан</b>`];
     if (projectData.клиент) lines.push(`👤 ${projectData.клиент}`);
     if (projectData.объект) lines.push(`📍 ${projectData.объект}`);
@@ -75,15 +72,13 @@ export default async function handler(req, res) {
       lines.push('');
       projectData.ссылки.forEach(l => lines.push(`🔗 <a href="${l.url}">${l.заголовок || l.url}</a>`));
     }
-    lines.push(`\n🧮 <a href="https://pro-design-calc.vercel.app/history">Открыть очередь проектов</a>`);
+    lines.push(`\n🧮 <a href="${SITE}/history">Открыть очередь проектов</a>`);
 
     await tgSend(TG_TOKEN, TG_CHAT, lines.join('\n'), threadId);
-
     return res.status(200).json({ ok: true, threadId, topicUrl });
   }
 
-  // ── Уведомления по расчётам (open / confirm / feedback) ─────────────────
-
+  // ── Уведомления по расчётам ──────────────────────────────────────────────
   if (!calcId) return res.status(400).json({ error: 'Missing calcId' });
 
   const fetchResp = await fetch(
@@ -93,15 +88,29 @@ export default async function handler(req, res) {
   const rows = await fetchResp.json();
   if (!rows?.length) return res.status(404).json({ error: 'Calculation not found' });
 
-  const calc    = rows[0].data;
-  const client  = calc.клиент || calc.объект || 'Клиент не указан';
-  const kpNum   = String(calcId).slice(-6);
-  const now     = new Date().toISOString();
+  const calc   = rows[0].data;
+  const client = calc.клиент || calc.объект || 'Клиент не указан';
+  const kpNum  = String(calcId).slice(-6);
+  const now    = new Date().toISOString();
   const dateStr = new Date().toLocaleString('ru-RU', {
     timeZone: 'Asia/Yekaterinburg',
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
+
+  // Ссылка на расчёт для команды (внутренняя, не для клиента)
+  const calcLink = `\n🔗 <a href="${SITE}/kp?id=${calcId}">Открыть расчёт</a>`;
+
+  // Найти тему проекта если расчёт создан из проекта
+  let threadId = null;
+  if (calc.projectId) {
+    const projResp = await fetch(
+      `${SB_URL}/rest/v1/projects?id=eq.${encodeURIComponent(calc.projectId)}&select=data`,
+      { headers: sbH }
+    );
+    const projRows = await projResp.json();
+    threadId = projRows?.[0]?.data?.threadId || null;
+  }
 
   let message    = '';
   let updateData = null;
@@ -112,13 +121,13 @@ export default async function handler(req, res) {
       if (Date.now() - new Date(calc.last_notified_at).getTime() < 30 * 60 * 1000)
         return res.status(200).json({ skipped: true, reason: 'dedup' });
     }
-    message    = `👀 <b>${client}</b> открыл КП #${kpNum}\n🕐 ${dateStr}`;
+    message    = `👀 <b>${client}</b> открыл КП #${kpNum}\n🕐 ${dateStr}${calcLink}`;
     updateData = { ...calc, last_notified_at: now };
 
   } else if (type === 'confirm') {
     if (calc.подтверждениеВкл === false) return res.status(200).json({ skipped: true, reason: 'confirm disabled' });
     if (calc.confirmed_at) return res.status(200).json({ skipped: true, reason: 'already confirmed' });
-    message    = `✅ <b>${client}</b> подтвердил КП #${kpNum}!\n📞 Свяжитесь с клиентом.`;
+    message    = `✅ <b>${client}</b> подтвердил КП #${kpNum}!\n📞 Свяжитесь с клиентом.${calcLink}`;
     updateData = { ...calc, confirmed_at: now };
 
   } else if (type === 'feedback') {
@@ -131,6 +140,7 @@ export default async function handler(req, res) {
       `💰 Цена: ${label('цена', fb.цена)}`,
       `📦 Состав: ${label('состав', fb.состав)}`,
       `👣 Дальше: ${label('шаг', fb.шаг)}`,
+      calcLink,
     ].join('\n');
     updateData = { ...calc, feedback: { ...fb, submitted_at: now } };
 
@@ -146,7 +156,8 @@ export default async function handler(req, res) {
     });
   }
 
-  const tgData = await tgSend(TG_TOKEN, TG_CHAT, message);
+  // Отправляем в тему проекта если привязана, иначе в общий чат
+  const tgData = await tgSend(TG_TOKEN, TG_CHAT, message, threadId);
   if (!tgData.ok) {
     console.error('Telegram error:', tgData);
     return res.status(502).json({ error: 'Telegram send failed', details: tgData });

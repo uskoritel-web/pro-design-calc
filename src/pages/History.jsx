@@ -123,8 +123,9 @@ function ProjectCard({ project, onDelete, onEdit, onCreateTopic }) {
   const hasDetails = project.заметки || (project.ссылки?.length > 0);
 
   const startCalcUrl = `/app?${new URLSearchParams({
-    ...(project.клиент ? { клиент: project.клиент } : {}),
-    ...(project.объект ? { объект: project.объект } : {}),
+    ...(project.клиент    ? { клиент:    project.клиент }    : {}),
+    ...(project.объект    ? { объект:    project.объект }    : {}),
+    ...(project.id        ? { projectId: project.id }        : {}),
   }).toString()}`;
 
   const handleCreateTopic = async () => {
@@ -181,7 +182,7 @@ function ProjectCard({ project, onDelete, onEdit, onCreateTopic }) {
                 {creating ? (
                   <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Создаём тему…</>
                 ) : (
-                  <>✈️ Создать тему в Telegram</>
+                  <>✈️ Создать тему в ТГ</>
                 )}
               </button>
               <button

@@ -190,13 +190,15 @@ export default function Calculator() {
       });
     } else {
       // Предзаполнение из ссылки «Начать расчёт» со страницы проектов
-      const клиент = params.get('клиент');
-      const объект = params.get('объект');
-      if (клиент || объект) {
+      const клиент   = params.get('клиент');
+      const объект   = params.get('объект');
+      const projectId = params.get('projectId');
+      if (клиент || объект || projectId) {
         setForm(f => ({
           ...f,
-          ...(клиент ? { клиент } : {}),
-          ...(объект ? { объект } : {}),
+          ...(клиент    ? { клиент }    : {}),
+          ...(объект    ? { объект }    : {}),
+          ...(projectId ? { projectId } : {}),
         }));
       }
     }
