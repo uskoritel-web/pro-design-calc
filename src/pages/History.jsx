@@ -303,16 +303,41 @@ export default function History() {
   const [calcs, setCalcs]             = useState([]);
   const [projects, setProjects]       = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [loadingSlow, setLoadingSlow] = useState(false);
   const [showForm, setShowForm]       = useState(false);
   const [editingProject, setEditing]  = useState(null);
   const [search, setSearch]           = useState('');
 
   useEffect(() => {
-    Promise.all([loadCalculations(), loadProjects()]).then(([c, p]) => {
-      setCalcs(c);
-      setProjects(p);
-      setLoading(false);
-    });
+    const loadData = async () => {
+      // Показываем предупреждение если загрузка >3 сек
+      const slowTimer = setTimeout(() => {
+        setLoadingSlow(true);
+      }, 3000);
+
+      try {
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 30000) // 30 секунд для Supabase cold start
+        );
+
+        const data = Promise.all([loadCalculations(), loadProjects()]);
+        const [c, p] = await Promise.race([data, timeout]);
+
+        setCalcs(c);
+        setProjects(p);
+      } catch (err) {
+        console.error('Ошибка загрузки:', err);
+        setCalcs([]);
+        setProjects([]);
+        alert('Не удалось загрузить данные. Проверьте интернет или обновите страницу.');
+      } finally {
+        clearTimeout(slowTimer);
+        setLoading(false);
+        setLoadingSlow(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   // ── Telegram тема ──
@@ -443,7 +468,14 @@ export default function History() {
         </div>
 
         {loading ? (
-          <div className="text-center py-24 text-white/40">Загрузка...</div>
+          <div className="text-center py-24">
+            <div className="text-white/40 mb-3">Загрузка...</div>
+            {loadingSlow && (
+              <p className="text-white/30 text-sm">
+                Первая загрузка может занять до 30 секунд (база "просыпается")
+              </p>
+            )}
+          </div>
         ) : (
 
           /* ── Вкладка «Надо посчитать» ── */
