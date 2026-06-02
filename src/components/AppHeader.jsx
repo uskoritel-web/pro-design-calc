@@ -49,6 +49,7 @@ export default function AppHeader() {
             <NavLink href="/app" icon="🧮">Расчёт</NavLink>
             <NavLink href="/history" icon="📁">Проекты</NavLink>
             <NavLink href="/settings" icon="⚙️">Настройки</NavLink>
+            <NavLink href="/guide" icon="📖">Гайд</NavLink>
 
             {/* Кнопка справки */}
             <button
