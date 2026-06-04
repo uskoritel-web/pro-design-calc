@@ -848,11 +848,11 @@ export default function Calculator() {
 
                   <div className="border-t border-white/10 my-2" />
                   <ResultRow label="Мебель итого" value={fmt(result.итогоМебель)} />
-                  <ResultRow label={`Монтаж (${result.монтажПроцент}%)`} value={fmt(result.монтаж)} small />
-                  <ResultRow label="Доставка" value={fmt(result.доставка)} small />
                   {result.технолог > 0 && (
                     <ResultRow label="Технолог" value={fmt(result.технолог)} small />
                   )}
+                  <ResultRow label={`Монтаж (${result.монтажПроцент}%)`} value={fmt(result.монтаж)} small />
+                  <ResultRow label="Доставка" value={fmt(result.доставка)} small />
 
                   <div className="border-t border-white/10 my-2" />
                   <ResultRow label="База" value={fmt(result.baseTotal)} accent="blue" />
