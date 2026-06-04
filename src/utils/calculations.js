@@ -132,12 +132,15 @@ export function calcTotal(data, settings) {
 
   const итогоМебель = корпуса + фасадыСумма + фрезеровка + столешница + фурнитура;
 
-  const монтажПроцент = parseFloat(data.монтажПроцент) || 0;
-  const монтаж = итогоМебель * (монтажПроцент / 100);
   const доставка  = parseFloat(data.доставка)  || 0;
   const технолог  = parseFloat(data.технолог)  || 0;
 
-  const baseTotal = итогоМебель + монтаж + доставка + технолог;
+  // Монтаж считается от суммы материалов + доставка + технолог
+  const baseBezMontazha = итогоМебель + доставка + технолог;
+  const монтажПроцент = parseFloat(data.монтажПроцент) || 0;
+  const монтаж = baseBezMontazha * (монтажПроцент / 100);
+
+  const baseTotal = baseBezMontazha + монтаж;
 
   // ── Скрытая наценка ──────────────────────────────────────────────────────
   const скрытаяСумма = calcAdjustment(

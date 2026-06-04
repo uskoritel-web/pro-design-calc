@@ -298,6 +298,45 @@ export default function Settings() {
               <div className="bg-white/5 rounded-xl px-4 py-3 text-xs text-white/40">
                 Мин. кусок — некрасивый шов, плохо держится. Значение подобрано опытным путём, уточнить по статистике.
               </div>
+
+              {/* Дополнительные позиции по столешницам */}
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <h3 className="text-white font-semibold mb-4">Дополнительные позиции</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Столешница камень белый">
+                    <NumInput
+                      value={settings.столешницы?.каменьБелый || ''}
+                      onChange={v => setСтолешницы('каменьБелый', v)}
+                      placeholder="0"
+                      suffix="₽"
+                    />
+                  </Field>
+                  <Field label="Мойка камень белый">
+                    <NumInput
+                      value={settings.столешницы?.мойкаКамень || ''}
+                      onChange={v => setСтолешницы('мойкаКамень', v)}
+                      placeholder="0"
+                      suffix="₽"
+                    />
+                  </Field>
+                  <Field label="Подклейка металлической мойки">
+                    <NumInput
+                      value={settings.столешницы?.подклейкаМойки || ''}
+                      onChange={v => setСтолешницы('подклейкаМойки', v)}
+                      placeholder="0"
+                      suffix="₽"
+                    />
+                  </Field>
+                  <Field label="Подклейка">
+                    <NumInput
+                      value={settings.столешницы?.подклейка || ''}
+                      onChange={v => setСтолешницы('подклейка', v)}
+                      placeholder="0"
+                      suffix="₽"
+                    />
+                  </Field>
+                </div>
+              </div>
             </div>
           </div>
 
