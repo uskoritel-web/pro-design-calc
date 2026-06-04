@@ -303,12 +303,12 @@ export default function Settings() {
               <div className="mt-6 pt-6 border-t border-white/10">
                 <h3 className="text-white font-semibold mb-4">Дополнительные позиции</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Столешница камень белый">
+                  <Field label="Столешница камень белый" hint="цена за погонный метр">
                     <NumInput
                       value={settings.столешницы?.каменьБелый || ''}
                       onChange={v => setСтолешницы('каменьБелый', v)}
                       placeholder="0"
-                      suffix="₽"
+                      suffix="₽/м"
                     />
                   </Field>
                   <Field label="Мойка камень белый">

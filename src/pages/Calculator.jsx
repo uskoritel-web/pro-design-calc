@@ -662,6 +662,44 @@ export default function Calculator() {
               )}
             </Card>
 
+            {/* Блок: Дополнительно по столешницам */}
+            <Card title="Дополнительно по столешницам">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Столешница камень белый" hint="погонные метры">
+                  <NumInput
+                    value={form.каменьБелыйМетры || ''}
+                    onChange={v => set('каменьБелыйМетры', v)}
+                    placeholder="0"
+                    suffix="м"
+                  />
+                </Field>
+                <Field label="Мойка камень белый" hint="количество">
+                  <NumInput
+                    value={form.мойкаКамень || ''}
+                    onChange={v => set('мойкаКамень', v)}
+                    placeholder="0"
+                    suffix="шт"
+                  />
+                </Field>
+                <Field label="Подклейка металлической мойки" hint="количество">
+                  <NumInput
+                    value={form.подклейкаМойки || ''}
+                    onChange={v => set('подклейкаМойки', v)}
+                    placeholder="0"
+                    suffix="шт"
+                  />
+                </Field>
+                <Field label="Подклейка" hint="количество">
+                  <NumInput
+                    value={form.подклейка || ''}
+                    onChange={v => set('подклейка', v)}
+                    placeholder="0"
+                    suffix="шт"
+                  />
+                </Field>
+              </div>
+            </Card>
+
             {/* Блок: Фурнитура */}
             <Card title="Фурнитура" badge={result.фурнитура > 0 ? fmt(result.фурнитура) : undefined}>
               {/* Сообщение если цены ещё не заполнены */}
