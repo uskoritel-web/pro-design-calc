@@ -79,12 +79,37 @@ export async function loadSettings() {
       return item;
     });
   }
+  // Миграция: добавить отсутствующую фурнитуру
   if (!saved.прайсФурнитуры) {
     saved.прайсФурнитуры = defaultSettings.прайсФурнитуры;
+  } else {
+    // Добавить новые позиции если их нет
+    const existingIds = saved.прайсФурнитуры.map(f => f.id);
+    const missing = defaultSettings.прайсФурнитуры.filter(f => !existingIds.includes(f.id));
+    if (missing.length > 0) {
+      saved.прайсФурнитуры = [...saved.прайсФурнитуры, ...missing];
+    }
   }
+
+  // Миграция: добавить отсутствующие фасады
+  if (!saved.прайсФасадов) {
+    saved.прайсФасадов = defaultSettings.прайсФасадов;
+  } else {
+    const existingMaterials = saved.прайсФасадов.map(f => f.материал);
+    const missing = defaultSettings.прайсФасадов.filter(f => !existingMaterials.includes(f.материал));
+    if (missing.length > 0) {
+      saved.прайсФасадов = [...saved.прайсФасадов, ...missing];
+    }
+  }
+
+  // Миграция: добавить новые поля столешниц
   if (!saved.столешницы) {
     saved.столешницы = defaultSettings.столешницы;
+  } else {
+    // Добавить новые поля если их нет
+    saved.столешницы = { ...defaultSettings.столешницы, ...saved.столешницы };
   }
+
   return { ...defaultSettings, ...saved };
 }
 
