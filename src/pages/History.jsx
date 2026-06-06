@@ -309,9 +309,11 @@ export default function History() {
   const [editingProject, setEditing]  = useState(null);
   const [search, setSearch]           = useState('');
 
-  const loadData = async () => {
-    setLoading(true);
-    setLoadError(false);
+  const loadData = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError(false);
+    }
 
     // Показываем предупреждение если загрузка >3 сек
     const slowTimer = setTimeout(() => {
@@ -320,7 +322,7 @@ export default function History() {
 
     try {
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 30000) // 30 секунд для Supabase cold start
+        setTimeout(() => reject(new Error('timeout')), 30000)
       );
 
       const data = Promise.all([loadCalculations(), loadProjects()]);
@@ -329,11 +331,25 @@ export default function History() {
       setCalcs(c);
       setProjects(p);
       setLoadError(false);
+
+      // Сохраняем в localStorage для быстрого показа при следующем открытии
+      try {
+        localStorage.setItem('cached_calculations', JSON.stringify(c));
+        localStorage.setItem('cached_projects', JSON.stringify(p));
+        localStorage.setItem('cache_timestamp', Date.now().toString());
+      } catch (e) {
+        console.warn('Не удалось сохранить кэш:', e);
+      }
     } catch (err) {
       console.error('Ошибка загрузки:', err);
-      setCalcs([]);
-      setProjects([]);
-      setLoadError(true);
+
+      // Если это не фоновое обновление - показываем ошибку
+      if (!silent) {
+        setCalcs([]);
+        setProjects([]);
+        setLoadError(true);
+      }
+      // Если фоновое - оставляем старые данные
     } finally {
       clearTimeout(slowTimer);
       setLoading(false);
@@ -342,7 +358,41 @@ export default function History() {
   };
 
   useEffect(() => {
-    loadData();
+    // Пытаемся загрузить из кэша мгновенно
+    try {
+      const cachedCalcs = localStorage.getItem('cached_calculations');
+      const cachedProjects = localStorage.getItem('cached_projects');
+      const cacheTime = localStorage.getItem('cache_timestamp');
+
+      if (cachedCalcs && cachedProjects) {
+        const calcs = JSON.parse(cachedCalcs);
+        const projects = JSON.parse(cachedProjects);
+
+        // Показываем кэшированные данные сразу
+        setCalcs(calcs);
+        setProjects(projects);
+        setLoading(false);
+
+        // Проверяем возраст кэша
+        const cacheAge = Date.now() - parseInt(cacheTime || '0');
+        const cacheOld = cacheAge > 60000; // старше 1 минуты
+
+        // Загружаем свежие данные в фоне (особенно если кэш старый)
+        if (cacheOld) {
+          // Через небольшую задержку чтобы UI успел отрисоваться
+          setTimeout(() => loadData(true), 500);
+        } else {
+          // Загружаем через 2 секунды если кэш свежий
+          setTimeout(() => loadData(true), 2000);
+        }
+      } else {
+        // Нет кэша - обычная загрузка
+        loadData();
+      }
+    } catch (err) {
+      console.error('Ошибка чтения кэша:', err);
+      loadData();
+    }
   }, []);
 
   // ── Telegram тема ──
@@ -373,10 +423,19 @@ export default function History() {
   const handleSaveProject = async (project, тгРежим = 'skip') => {
     setSaving(true);
     await saveProject(project);
-    setProjects(prev => {
-      const exists = prev.find(p => p.id === project.id);
-      return exists ? prev.map(p => p.id === project.id ? project : p) : [project, ...prev];
-    });
+    const newProjects = (() => {
+      const exists = projects.find(p => p.id === project.id);
+      return exists ? projects.map(p => p.id === project.id ? project : p) : [project, ...projects];
+    })();
+    setProjects(newProjects);
+
+    // Обновляем кэш
+    try {
+      localStorage.setItem('cached_projects', JSON.stringify(newProjects));
+      localStorage.setItem('cache_timestamp', Date.now().toString());
+    } catch (e) {
+      console.warn('Не удалось обновить кэш:', e);
+    }
 
     if (тгРежим === 'create') {
       await handleCreateTopic(project);
@@ -390,7 +449,16 @@ export default function History() {
   const handleDeleteProject = async (id) => {
     if (!confirm('Удалить этот проект?')) return;
     await deleteProject(id);
-    setProjects(prev => prev.filter(p => p.id !== id));
+    const newProjects = projects.filter(p => p.id !== id);
+    setProjects(newProjects);
+
+    // Обновляем кэш
+    try {
+      localStorage.setItem('cached_projects', JSON.stringify(newProjects));
+      localStorage.setItem('cache_timestamp', Date.now().toString());
+    } catch (e) {
+      console.warn('Не удалось обновить кэш:', e);
+    }
   };
 
   // ── Расчёты ──
@@ -398,7 +466,16 @@ export default function History() {
     e.stopPropagation();
     if (!confirm('Удалить этот расчёт?')) return;
     await deleteCalculation(id);
-    setCalcs(prev => prev.filter(c => c.id !== id));
+    const newCalcs = calcs.filter(c => c.id !== id);
+    setCalcs(newCalcs);
+
+    // Обновляем кэш
+    try {
+      localStorage.setItem('cached_calculations', JSON.stringify(newCalcs));
+      localStorage.setItem('cache_timestamp', Date.now().toString());
+    } catch (e) {
+      console.warn('Не удалось обновить кэш:', e);
+    }
   };
 
   // Фильтрация по поисковому запросу
