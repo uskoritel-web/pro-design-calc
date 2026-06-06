@@ -178,6 +178,7 @@ export default function Calculator() {
 
   const [form, setForm] = useState(() => defaultForm(settings));
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [validationIssues, setValidationIssues] = useState(null);
   const [pendingAction, setPendingAction]         = useState(null);
 
@@ -294,13 +295,28 @@ export default function Calculator() {
 
   // Фактическое сохранение (вызывается после прохождения валидации)
   const doSave = async () => {
-    await saveCalculation({ ...form, result });
-    setSaved(true);
+    setSaving(true);
+    try {
+      await saveCalculation({ ...form, result });
+      setSaved(true);
+    } catch (err) {
+      console.error('Ошибка сохранения:', err);
+      alert('Не удалось сохранить расчёт. Проверьте интернет и попробуйте снова.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const doGenerateKP = async () => {
-    await saveCalculation({ ...form, result });
-    window.location.href = `/kp?id=${form.id}`;
+    setSaving(true);
+    try {
+      await saveCalculation({ ...form, result });
+      window.location.href = `/kp?id=${form.id}`;
+    } catch (err) {
+      console.error('Ошибка формирования КП:', err);
+      alert('Не удалось сформировать КП. Проверьте интернет и попробуйте снова.');
+      setSaving(false);
+    }
   };
 
   // Запуск валидации перед действием
@@ -941,20 +957,28 @@ export default function Calculator() {
               <div className="space-y-3">
                 <button
                   onClick={handleSave}
+                  disabled={saving}
                   className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
                     saved
                       ? 'bg-green-500/20 border border-green-500/30 text-green-400'
+                      : saving
+                      ? 'bg-gray-600 text-white/50 cursor-wait'
                       : 'bg-white/10 hover:bg-white/15 border border-white/20 text-white'
                   }`}
                 >
-                  {saved ? '✓ Расчёт сохранён' : 'Сохранить расчёт'}
+                  {saving ? 'Сохранение...' : saved ? '✓ Расчёт сохранён' : 'Сохранить расчёт'}
                 </button>
 
                 <button
                   onClick={handleGenerateKP}
-                  className="w-full py-3 rounded-xl font-semibold text-sm bg-brand-blue hover:bg-brand-blue/90 text-white transition-colors"
+                  disabled={saving}
+                  className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
+                    saving
+                      ? 'bg-gray-600 text-white/50 cursor-wait'
+                      : 'bg-brand-blue hover:bg-brand-blue/90 text-white'
+                  }`}
                 >
-                  Сформировать КП →
+                  {saving ? 'Загрузка...' : 'Сформировать КП →'}
                 </button>
               </div>
 

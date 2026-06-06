@@ -98,9 +98,16 @@ export default function Settings() {
   };
 
   const handleSave = async () => {
-    await saveSettings(settings);
-    setSavedMsg('Настройки сохранены!');
-    setTimeout(() => setSavedMsg(''), 3000);
+    setSavedMsg('Сохранение...');
+    try {
+      await saveSettings(settings);
+      setSavedMsg('✅ Сохранено!');
+      setTimeout(() => setSavedMsg(''), 3000);
+    } catch (err) {
+      console.error('Ошибка сохранения:', err);
+      setSavedMsg('❌ Ошибка сохранения');
+      setTimeout(() => setSavedMsg(''), 5000);
+    }
   };
 
   return (
@@ -406,7 +413,16 @@ export default function Settings() {
           {/* Кнопка сохранить */}
           <button
             onClick={handleSave}
-            className="w-full py-4 bg-brand-blue hover:bg-brand-blue/90 text-white font-bold rounded-2xl transition-colors text-sm"
+            disabled={savedMsg === 'Сохранение...'}
+            className={`w-full py-4 font-bold rounded-2xl transition-all text-sm ${
+              savedMsg === '✅ Сохранено!'
+                ? 'bg-green-600 text-white'
+                : savedMsg === '❌ Ошибка сохранения'
+                ? 'bg-red-600 text-white'
+                : savedMsg === 'Сохранение...'
+                ? 'bg-gray-600 text-white/50 cursor-wait'
+                : 'bg-brand-blue hover:bg-brand-blue/90 text-white'
+            }`}
           >
             {savedMsg || 'Сохранить настройки'}
           </button>

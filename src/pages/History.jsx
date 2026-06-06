@@ -304,39 +304,44 @@ export default function History() {
   const [projects, setProjects]       = useState([]);
   const [loading, setLoading]         = useState(true);
   const [loadingSlow, setLoadingSlow] = useState(false);
+  const [loadError, setLoadError]     = useState(false);
   const [showForm, setShowForm]       = useState(false);
   const [editingProject, setEditing]  = useState(null);
   const [search, setSearch]           = useState('');
 
+  const loadData = async () => {
+    setLoading(true);
+    setLoadError(false);
+
+    // Показываем предупреждение если загрузка >3 сек
+    const slowTimer = setTimeout(() => {
+      setLoadingSlow(true);
+    }, 3000);
+
+    try {
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 30000) // 30 секунд для Supabase cold start
+      );
+
+      const data = Promise.all([loadCalculations(), loadProjects()]);
+      const [c, p] = await Promise.race([data, timeout]);
+
+      setCalcs(c);
+      setProjects(p);
+      setLoadError(false);
+    } catch (err) {
+      console.error('Ошибка загрузки:', err);
+      setCalcs([]);
+      setProjects([]);
+      setLoadError(true);
+    } finally {
+      clearTimeout(slowTimer);
+      setLoading(false);
+      setLoadingSlow(false);
+    }
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      // Показываем предупреждение если загрузка >3 сек
-      const slowTimer = setTimeout(() => {
-        setLoadingSlow(true);
-      }, 3000);
-
-      try {
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 30000) // 30 секунд для Supabase cold start
-        );
-
-        const data = Promise.all([loadCalculations(), loadProjects()]);
-        const [c, p] = await Promise.race([data, timeout]);
-
-        setCalcs(c);
-        setProjects(p);
-      } catch (err) {
-        console.error('Ошибка загрузки:', err);
-        setCalcs([]);
-        setProjects([]);
-        alert('Не удалось загрузить данные. Проверьте интернет или обновите страницу.');
-      } finally {
-        clearTimeout(slowTimer);
-        setLoading(false);
-        setLoadingSlow(false);
-      }
-    };
-
     loadData();
   }, []);
 
@@ -475,6 +480,18 @@ export default function History() {
                 Первая загрузка может занять до 30 секунд (база "просыпается")
               </p>
             )}
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-24">
+            <div className="text-5xl mb-4">⚠️</div>
+            <h2 className="text-xl font-bold text-white/60 mb-2">Не удалось загрузить данные</h2>
+            <p className="text-white/30 text-sm mb-6">Проверьте подключение к интернету</p>
+            <button
+              onClick={loadData}
+              className="px-6 py-3 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl font-semibold transition-colors"
+            >
+              Попробовать снова
+            </button>
           </div>
         ) : (
 
