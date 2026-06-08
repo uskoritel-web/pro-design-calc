@@ -8,29 +8,18 @@ const GRAY = '#6B7280';
 const LIGHT = '#F3F4F6';
 const DARK = '#111827';
 
-// Логотип ПроДизайн (CSS-версия для PDF)
+// Логотип ПроДизайн (SVG-версия для PDF)
 function KPLogo({ white = false }) {
+  const logoSrc = white
+    ? '/Лого SVG/основная версия лого белый.svg'
+    : '/Лого SVG/основная версия лого.svg';
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{
-        background: white ? 'rgba(255,255,255,0.25)' : BLUE,
-        borderRadius: 8, padding: '4px 8px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <span style={{
-          color: 'white', fontWeight: 900, fontSize: 11,
-          letterSpacing: 0.5, lineHeight: 1,
-        }}>ПРО</span>
-      </div>
-      <div>
-        <div style={{ color: white ? 'white' : DARK, fontWeight: 900, fontSize: 18, lineHeight: 1 }}>
-          Дизайн
-        </div>
-        <div style={{ color: white ? 'rgba(255,255,255,0.7)' : GRAY, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', marginTop: 2 }}>
-          Ремонт и комплектация
-        </div>
-      </div>
-    </div>
+    <img
+      src={logoSrc}
+      alt="ПроДизайн"
+      style={{ height: 40, width: 'auto', display: 'block' }}
+    />
   );
 }
 

@@ -4,14 +4,12 @@ import HelpPanel from './HelpPanel';
 
 function Logo() {
   return (
-    <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-      <div className="bg-brand-blue rounded-lg p-1.5 flex items-center justify-center">
-        <span className="text-white font-black text-xs leading-none px-1">ПРО</span>
-      </div>
-      <div>
-        <div className="text-white font-black text-sm sm:text-base leading-none tracking-tight">Дизайн</div>
-        <div className="text-white/40 text-xs font-medium hidden sm:block">считаем мебель</div>
-      </div>
+    <a href="/" className="flex items-center hover:opacity-80 transition-opacity">
+      <img
+        src="/Лого SVG/основная версия лого белый.svg"
+        alt="ПроДизайн"
+        className="h-8 sm:h-10 w-auto"
+      />
     </a>
   );
 }
