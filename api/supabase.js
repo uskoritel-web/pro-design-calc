@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization, Prefer, x-client-info');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization, Prefer, Accept, x-client-info');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -46,9 +46,12 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json',
     };
 
-    // Копируем Prefer header если есть
+    // Копируем важные headers от клиента
     if (req.headers['prefer']) {
       headers['Prefer'] = req.headers['prefer'];
+    }
+    if (req.headers['accept']) {
+      headers['Accept'] = req.headers['accept'];
     }
 
     // Формируем запрос к Supabase
