@@ -87,6 +87,37 @@ export default function Settings() {
     }));
   };
 
+  // Прайс столешниц
+  const updateCountertopPrice = (id, field, value) => {
+    setSettings(s => ({
+      ...s,
+      прайсСтолешниц: s.прайсСтолешниц.map(item => {
+        if (item.id !== id) return item;
+        const updated = { ...item, [field]: value };
+        if (field === 'закупка' || field === 'наценка') {
+          const з = parseFloat(field === 'закупка' ? value : item.закупка) || 0;
+          const н = parseFloat(field === 'наценка' ? value : item.наценка) || 0;
+          updated.цена = з > 0 ? String(Math.round(з * (1 + н / 100))) : '';
+        }
+        return updated;
+      }),
+    }));
+  };
+
+  const addCountertopRow = () => {
+    setSettings(s => ({
+      ...s,
+      прайсСтолешниц: [...s.прайсСтолешниц, { id: Date.now(), материал: '', закупка: '', наценка: 30, цена: '' }],
+    }));
+  };
+
+  const removeCountertopRow = (id) => {
+    setSettings(s => ({
+      ...s,
+      прайсСтолешниц: s.прайсСтолешниц.filter(item => item.id !== id),
+    }));
+  };
+
   // Прайс фурнитуры
   const updateFurniturePrice = (id, value) => {
     setSettings(s => ({
@@ -347,10 +378,125 @@ export default function Settings() {
             </div>
           </div>
 
+          {/* Прайс столешниц (материалы) */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10">
+              <h2 className="text-white font-bold">Прайс столешниц (по материалам)</h2>
+              <p className="text-white/40 text-xs mt-1">Цена за м². Для выбора материала в расчёте.</p>
+            </div>
+            <div className="p-6 space-y-2">
+              {/* Заголовки колонок */}
+              <div className="hidden sm:flex gap-2 text-xs text-white/40 px-1 mb-1">
+                <div className="flex-1">Материал</div>
+                <div className="w-28">Закупка</div>
+                <div className="w-24">Наценка</div>
+                <div className="w-28">Клиенту</div>
+                <div className="w-8" />
+              </div>
+
+              {settings.прайсСтолешниц?.map(item => {
+                const з = parseFloat(item.закупка) || 0;
+                const н = parseFloat(item.наценка) || 0;
+                const авто = з > 0 ? String(Math.round(з * (1 + н / 100))) : '';
+                return (
+                  <div key={item.id} className="space-y-2 sm:space-y-0 sm:flex gap-2 items-center">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-white/40 mb-1 sm:hidden">Материал</div>
+                      <input
+                        type="text"
+                        value={item.материал}
+                        onChange={e => updateCountertopPrice(item.id, 'материал', e.target.value)}
+                        placeholder="Название материала"
+                        className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                          text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 sm:contents gap-2">
+                      <div className="sm:w-28 flex-shrink-0">
+                        <div className="text-xs text-white/40 mb-1 sm:hidden">Закупка</div>
+                        <NumInput
+                          value={item.закупка}
+                          onChange={v => updateCountertopPrice(item.id, 'закупка', v)}
+                          placeholder="0"
+                          suffix="₽/м²"
+                        />
+                      </div>
+                      <div className="sm:w-24 flex-shrink-0">
+                        <div className="text-xs text-white/40 mb-1 sm:hidden">Наценка</div>
+                        <NumInput
+                          value={item.наценка}
+                          onChange={v => updateCountertopPrice(item.id, 'наценка', v)}
+                          placeholder="30"
+                          suffix="%"
+                        />
+                      </div>
+                      <div className="sm:w-28 flex-shrink-0">
+                        <div className="text-xs text-white/40 mb-1 sm:hidden">Клиенту</div>
+                        <NumInput
+                          value={item.цена}
+                          onChange={v => updateCountertopPrice(item.id, 'цена', v)}
+                          placeholder={авто || '0'}
+                          suffix="₽/м²"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeCountertopRow(item.id)}
+                      className="hidden sm:flex w-8 h-8 items-center justify-center text-white/30 hover:text-red-400 transition-colors text-xl flex-shrink-0"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+
+              <button
+                onClick={addCountertopRow}
+                className="mt-4 w-full sm:w-auto px-4 py-2 text-sm text-brand-blue border border-brand-blue/30 hover:bg-brand-blue/10 rounded-xl transition-colors"
+              >
+                + Добавить материал
+              </button>
+
+              <div className="bg-white/5 rounded-xl px-4 py-3 text-xs text-white/40 mt-4">
+                Заполняется по мере поиска поставщиков. Цены за м² готовой столешницы.
+              </div>
+            </div>
+          </div>
+
+          {/* Бренды фурнитуры */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10">
+              <h2 className="text-white font-bold">Бренды фурнитуры</h2>
+              <p className="text-white/40 text-xs mt-1">Фиксированная стоимость за комплект фурнитуры. Отображается в КП.</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {(settings.брендыФурнитуры || []).map(item => (
+                <Field key={item.id} label={`Бренд: ${item.бренд}`}>
+                  <NumInput
+                    value={item.стоимость}
+                    onChange={v => {
+                      setSettings(s => ({
+                        ...s,
+                        брендыФурнитуры: s.брендыФурнитуры.map(b =>
+                          b.id === item.id ? { ...b, стоимость: v } : b
+                        ),
+                      }));
+                    }}
+                    placeholder="0"
+                    suffix="₽"
+                  />
+                </Field>
+              ))}
+              <div className="bg-white/5 rounded-xl px-4 py-3 text-xs text-white/40">
+                Пока используется только Boyard. В расчёте автоматически подставляется эта стоимость.
+              </div>
+            </div>
+          </div>
+
           {/* Прайс фурнитуры */}
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-white/10">
-              <h2 className="text-white font-bold">Прайс фурнитуры</h2>
+              <h2 className="text-white font-bold">Прайс фурнитуры (детализированный)</h2>
               <p className="text-white/40 text-xs mt-1">Цена за единицу. Количество задаётся в каждом расчёте отдельно.</p>
             </div>
             <div className="p-6 space-y-2">
