@@ -91,8 +91,10 @@ export default function KPPublic() {
         setCalc(found);
         if (found.confirmed_at) setConfirm('done');
         if (found.feedback)     setFeedbackSent(true);
-        // Задача 7: трекинг открытия
-        if (found.трекингВкл !== false) {
+        // Задача 7: трекинг открытия (пропускаем если preview=1)
+        const urlParams = new URLSearchParams(window.location.search);
+        const isPreview = urlParams.get('preview') === '1';
+        if (found.трекингВкл !== false && !isPreview) {
           fetch('/api/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

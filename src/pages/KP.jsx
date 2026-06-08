@@ -241,6 +241,17 @@ export default function KP() {
               >
                 {copied ? '✓ Скопировано' : '🔗 Ссылка для клиента'}
               </button>
+              <button
+                onClick={() => {
+                  const previewUrl = `${window.location.origin}/kp?id=${calc.id}&preview=1`;
+                  navigator.clipboard.writeText(previewUrl);
+                  alert('Скопирована ссылка для команды (без трекинга)');
+                }}
+                className="flex-1 sm:flex-none border border-white/20 hover:border-white/40 text-white/70 hover:text-white
+                  font-medium px-3 py-2 rounded-xl transition-colors text-xs sm:text-sm"
+              >
+                👁 Для команды
+              </button>
               {!isNative && (
                 <button
                   onClick={handlePrint}
