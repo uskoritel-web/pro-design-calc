@@ -363,13 +363,21 @@ export default function KPTemplate({ calc }) {
             {/* Столешница */}
             {кпСтолешница > 0 && <>
               <TableRow isCategory label="Столешница" />
-              <TableRow label="Столешница" detail="" amount={fmt(кпСтолешница)} />
+              <TableRow
+                label={calc.столешницаМатериал || 'Столешница'}
+                detail=""
+                amount={fmt(кпСтолешница)}
+              />
             </>}
 
             {/* Фурнитура */}
             {кпФурнитура > 0 && <>
               <TableRow isCategory label="Фурнитура" />
-              <TableRow label="Фурнитура и комплектующие" detail="" amount={fmt(кпФурнитура)} />
+              <TableRow
+                label={calc.фурнитураБренд ? `Фурнитура ${calc.фурнитураБренд}` : 'Фурнитура и комплектующие'}
+                detail=""
+                amount={fmt(кпФурнитура)}
+              />
             </>}
 
             {/* Монтаж, доставка, технолог */}

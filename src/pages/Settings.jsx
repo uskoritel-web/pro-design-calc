@@ -471,24 +471,68 @@ export default function Settings() {
             </div>
             <div className="p-6 space-y-4">
               {(settings.брендыФурнитуры || []).map(item => (
-                <Field key={item.id} label={`Бренд: ${item.бренд}`}>
-                  <NumInput
-                    value={item.стоимость}
-                    onChange={v => {
-                      setSettings(s => ({
-                        ...s,
-                        брендыФурнитуры: s.брендыФурнитуры.map(b =>
-                          b.id === item.id ? { ...b, стоимость: v } : b
-                        ),
-                      }));
-                    }}
-                    placeholder="0"
-                    suffix="₽"
-                  />
-                </Field>
+                <div key={item.id} className="space-y-2">
+                  <Field label="Название бренда">
+                    <input
+                      type="text"
+                      value={item.бренд}
+                      onChange={e => {
+                        setSettings(s => ({
+                          ...s,
+                          брендыФурнитуры: s.брендыФурнитуры.map(b =>
+                            b.id === item.id ? { ...b, бренд: e.target.value } : b
+                          ),
+                        }));
+                      }}
+                      className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                        text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
+                    />
+                  </Field>
+                  <Field label="Стоимость комплекта">
+                    <NumInput
+                      value={item.стоимость}
+                      onChange={v => {
+                        setSettings(s => ({
+                          ...s,
+                          брендыФурнитуры: s.брендыФурнитуры.map(b =>
+                            b.id === item.id ? { ...b, стоимость: v } : b
+                          ),
+                        }));
+                      }}
+                      placeholder="0"
+                      suffix="₽"
+                    />
+                  </Field>
+                  {settings.брендыФурнитуры.length > 1 && (
+                    <button
+                      onClick={() => {
+                        setSettings(s => ({
+                          ...s,
+                          брендыФурнитуры: s.брендыФурнитуры.filter(b => b.id !== item.id),
+                        }));
+                      }}
+                      className="text-red-400 hover:text-red-300 text-xs"
+                    >
+                      × Удалить бренд
+                    </button>
+                  )}
+                </div>
               ))}
+
+              <button
+                onClick={() => {
+                  setSettings(s => ({
+                    ...s,
+                    брендыФурнитуры: [...s.брендыФурнитуры, { id: Date.now(), бренд: '', стоимость: '' }],
+                  }));
+                }}
+                className="w-full sm:w-auto px-4 py-2 text-sm text-brand-blue border border-brand-blue/30 hover:bg-brand-blue/10 rounded-xl transition-colors"
+              >
+                + Добавить бренд
+              </button>
+
               <div className="bg-white/5 rounded-xl px-4 py-3 text-xs text-white/40">
-                Пока используется только Boyard. В расчёте автоматически подставляется эта стоимость.
+                Бренд выбирается в расчёте. Стоимость отображается в КП как "Фурнитура [Бренд]".
               </div>
             </div>
           </div>

@@ -597,8 +597,23 @@ export default function Calculator() {
 
             {/* Блок: Столешница */}
             <Card title="Столешница" badge={result.столешница > 0 ? fmt(result.столешница) : undefined}>
+              {/* Материал столешницы */}
+              <Field label="Материал столешницы">
+                <select
+                  value={form.столешницаМатериал || ''}
+                  onChange={e => set('столешницаМатериал', e.target.value)}
+                  className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                    text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
+                >
+                  <option value="" className="bg-[#1A1A2E]">— выберите —</option>
+                  {(settings.прайсСтолешниц || []).map(s => (
+                    <option key={s.id} value={s.материал} className="bg-[#1A1A2E]">{s.материал}</option>
+                  ))}
+                </select>
+              </Field>
+
               {/* Переключатель */}
-              <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit mb-5">
+              <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit mb-5 mt-4">
                 {[['manual', 'Вручную'], ['calc', 'По раскрою']].map(([val, label]) => (
                   <button
                     key={val}
@@ -718,6 +733,21 @@ export default function Calculator() {
 
             {/* Блок: Фурнитура */}
             <Card title="Фурнитура" badge={result.фурнитура > 0 ? fmt(result.фурнитура) : undefined}>
+              {/* Выбор бренда фурнитуры */}
+              <Field label="Бренд фурнитуры">
+                <select
+                  value={form.фурнитураБренд || ''}
+                  onChange={e => set('фурнитураБренд', e.target.value)}
+                  className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                    text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
+                >
+                  <option value="" className="bg-[#1A1A2E]">— выберите —</option>
+                  {(settings.брендыФурнитуры || []).map(b => (
+                    <option key={b.id} value={b.бренд} className="bg-[#1A1A2E]">{b.бренд}</option>
+                  ))}
+                </select>
+              </Field>
+
               {/* Сообщение если цены ещё не заполнены */}
               {(settings.прайсФурнитуры || []).every(p => !p.цена) && (
                 <div className="text-xs text-white/30 mb-4">
