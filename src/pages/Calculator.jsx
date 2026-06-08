@@ -810,6 +810,25 @@ export default function Calculator() {
                   <NumInput value={form.технолог ?? ''} onChange={v => set('технолог', v)} placeholder="0" suffix="₽" />
                 </Field>
               </div>
+
+              {/* Сроки производства */}
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <Field label="Срок доставки" hint="в днях, необязательно">
+                  <NumInput value={form.срокДоставкиДней ?? ''} onChange={v => set('срокДоставкиДней', v)} placeholder="14" suffix="дн" />
+                </Field>
+                <Field label="Дата производства" hint="необязательно, альтернатива">
+                  <input
+                    type="date"
+                    value={form.датаПроизводства || ''}
+                    onChange={e => set('датаПроизводства', e.target.value)}
+                    className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
+                      text-white rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
+                  />
+                </Field>
+              </div>
+              <div className="text-xs text-white/30 mt-2">
+                Если не заполнено — в КП будет «Срок изготовления по согласованию»
+              </div>
             </Card>
 
             {/* Блок: Финансы (только в точном режиме или если нужно) */}

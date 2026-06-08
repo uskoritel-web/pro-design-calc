@@ -116,7 +116,14 @@ export default function KPTemplate({ calc }) {
   if (!calc) return null;
   const r = calc.result || {};
   const date = formatDate(calc.createdAt);
-  const kpNumber = calc.id ? calc.id.slice(-6) : '000001';
+
+  // Номер КП: 3 цифры начиная с 057
+  const kpNumber = (() => {
+    if (!calc.id) return '057';
+    const hash = calc.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const num = 57 + (hash % 943); // 57..999
+    return String(num).padStart(3, '0');
+  })();
 
   // Формируем описание корпусов (размеры вместо листов)
   const корпусОписание = (() => {
@@ -266,7 +273,15 @@ export default function KPTemplate({ calc }) {
             {[
               '70% предоплата на материалы',
               'Остаток — в день доставки',
-              'Срок изготовления по согласованию',
+              (() => {
+                if (calc.срокДоставкиДней && calc.срокДоставкиДней > 0) {
+                  return `Срок изготовления ${calc.срокДоставкиДней} дней`;
+                }
+                if (calc.датаПроизводства) {
+                  return `Производство до ${calc.датаПроизводства}`;
+                }
+                return 'Срок изготовления по согласованию';
+              })(),
               'Гарантия на выполненные работы',
             ].map((c, i) => (
               <div key={i} style={{ fontSize: 12, color: GRAY, display: 'flex', gap: 6 }}>
