@@ -305,6 +305,8 @@ export default function History() {
   const [loading, setLoading]         = useState(true);
   const [loadingSlow, setLoadingSlow] = useState(false);
   const [loadError, setLoadError]     = useState(false);
+  const [errorDetails, setErrorDetails] = useState('');
+  const [showDebug, setShowDebug]     = useState(false);
   const [showForm, setShowForm]       = useState(false);
   const [editingProject, setEditing]  = useState(null);
   const [search, setSearch]           = useState('');
@@ -321,6 +323,8 @@ export default function History() {
     }, 3000);
 
     try {
+      setErrorDetails('Запрос к Supabase...');
+
       // Параллельная загрузка с таймаутом
       const timeout = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('timeout')), 30000)
@@ -332,6 +336,8 @@ export default function History() {
       const c = result[0] || [];
       const p = result[1] || [];
 
+      setErrorDetails(`Получено: ${c.length} расчётов, ${p.length} проектов`);
+
       setCalcs(c);
       setProjects(p);
       setLoadError(false);
@@ -342,12 +348,14 @@ export default function History() {
           localStorage.setItem('cached_calculations', JSON.stringify(c));
           localStorage.setItem('cached_projects', JSON.stringify(p));
           localStorage.setItem('cache_timestamp', Date.now().toString());
+          setErrorDetails('Кэш сохранён');
         }
       } catch (e) {
-        // Игнорируем ошибки кэша
+        setErrorDetails('Кэш не сохранился: ' + e.message);
       }
     } catch (err) {
       console.error('Ошибка загрузки:', err);
+      setErrorDetails('Ошибка: ' + (err.message || err.toString()));
 
       // Если это не фоновое обновление - показываем ошибку
       if (!silent) {
@@ -577,8 +585,23 @@ export default function History() {
             <div className="text-5xl mb-4">⚠️</div>
             <h2 className="text-xl font-bold text-white/60 mb-2">Не удалось загрузить данные</h2>
             <p className="text-white/30 text-sm mb-6">Проверьте подключение к интернету</p>
+            {errorDetails && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-md mx-auto mb-4">
+                <button
+                  onClick={() => setShowDebug(!showDebug)}
+                  className="text-xs text-white/40 hover:text-white/60 mb-2"
+                >
+                  {showDebug ? '▼' : '▶'} Детали ошибки
+                </button>
+                {showDebug && (
+                  <pre className="text-left text-xs text-white/60 whitespace-pre-wrap break-words">
+                    {errorDetails}
+                  </pre>
+                )}
+              </div>
+            )}
             <button
-              onClick={loadData}
+              onClick={() => loadData()}
               className="px-6 py-3 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl font-semibold transition-colors"
             >
               Попробовать снова

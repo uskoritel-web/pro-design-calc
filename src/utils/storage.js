@@ -157,21 +157,24 @@ export async function saveSettings(settings) {
 // Загрузить все расчёты (от новых к старым)
 export async function loadCalculations() {
   try {
+    console.log('[loadCalculations] START');
     const { data, error } = await supabase
       .from('calculations')
       .select('data, created_at')
       .order('created_at', { ascending: false })
       .limit(200);
 
+    console.log('[loadCalculations] Response:', { hasData: !!data, hasError: !!error, count: data?.length });
+
     if (error) {
       console.error('Supabase loadCalculations error:', error);
-      return [];
+      throw new Error('DB error: ' + error.message);
     }
     if (!data) return [];
     return data.map(row => row.data || row);
   } catch (err) {
     console.error('loadCalculations exception:', err);
-    return [];
+    throw err; // Пробрасываем ошибку наверх
   }
 }
 
@@ -210,20 +213,23 @@ export async function deleteCalculation(id) {
 
 export async function loadProjects() {
   try {
+    console.log('[loadProjects] START');
     const { data, error } = await supabase
       .from('projects')
       .select('data, created_at')
       .order('created_at', { ascending: false });
 
+    console.log('[loadProjects] Response:', { hasData: !!data, hasError: !!error, count: data?.length });
+
     if (error) {
       console.error('Supabase loadProjects error:', error);
-      return [];
+      throw new Error('DB error: ' + error.message);
     }
     if (!data) return [];
     return data.map(row => row.data || row);
   } catch (err) {
     console.error('loadProjects exception:', err);
-    return [];
+    throw err; // Пробрасываем ошибку наверх
   }
 }
 
