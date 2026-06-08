@@ -311,7 +311,7 @@ export default function History() {
   const [editingProject, setEditing]  = useState(null);
   const [search, setSearch]           = useState('');
 
-  const loadData = async (silent = false) => {
+  const loadData = async (silent = false, retryCount = 0) => {
     if (!silent) {
       setLoading(true);
       setLoadError(false);
@@ -323,11 +323,12 @@ export default function History() {
     }, 3000);
 
     try {
-      setErrorDetails('Запрос к Supabase...');
+      const attempt = retryCount + 1;
+      setErrorDetails(`Попытка ${attempt}/3: Запрос к Supabase...`);
 
-      // Параллельная загрузка с таймаутом
+      // Параллельная загрузка с увеличенным таймаутом (90 сек для холодного старта)
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 30000)
+        setTimeout(() => reject(new Error('timeout после 90 секунд')), 90000)
       );
 
       const data = Promise.all([loadCalculations(), loadProjects()]);
@@ -336,7 +337,7 @@ export default function History() {
       const c = result[0] || [];
       const p = result[1] || [];
 
-      setErrorDetails(`Получено: ${c.length} расчётов, ${p.length} проектов`);
+      setErrorDetails(`✓ Получено: ${c.length} расчётов, ${p.length} проектов`);
 
       setCalcs(c);
       setProjects(p);
@@ -348,14 +349,24 @@ export default function History() {
           localStorage.setItem('cached_calculations', JSON.stringify(c));
           localStorage.setItem('cached_projects', JSON.stringify(p));
           localStorage.setItem('cache_timestamp', Date.now().toString());
-          setErrorDetails('Кэш сохранён');
+          setErrorDetails('✓ Данные загружены и кэш сохранён');
         }
       } catch (e) {
         setErrorDetails('Кэш не сохранился: ' + e.message);
       }
     } catch (err) {
       console.error('Ошибка загрузки:', err);
-      setErrorDetails('Ошибка: ' + (err.message || err.toString()));
+      const errorMsg = err.message || err.toString();
+
+      // Retry логика: если timeout и попыток < 3 → повторяем
+      if (errorMsg.includes('timeout') && retryCount < 2 && !silent) {
+        const delay = (retryCount + 1) * 2000; // 2с, 4с
+        setErrorDetails(`Повтор через ${delay/1000} сек...`);
+        setTimeout(() => loadData(silent, retryCount + 1), delay);
+        return;
+      }
+
+      setErrorDetails(`Ошибка после ${retryCount + 1} попыток: ${errorMsg}`);
 
       // Если это не фоновое обновление - показываем ошибку
       if (!silent) {
@@ -573,11 +584,20 @@ export default function History() {
 
         {loading ? (
           <div className="text-center py-24">
+            <div className="inline-block w-12 h-12 border-4 border-white/20 border-t-brand-blue rounded-full animate-spin mb-4" />
             <div className="text-white/40 mb-3">Загрузка...</div>
             {loadingSlow && (
-              <p className="text-white/30 text-sm">
-                Первая загрузка может занять до 30 секунд (база "просыпается")
-              </p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-md mx-auto mt-4">
+                <p className="text-white/30 text-xs mb-2">
+                  ⏱ Первая загрузка может занять <strong className="text-white/60">до 90 секунд</strong>.
+                  База данных "просыпается" после неактивности.
+                </p>
+                {errorDetails && (
+                  <p className="text-white/40 text-xs font-mono mt-2">
+                    {errorDetails}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         ) : loadError ? (
