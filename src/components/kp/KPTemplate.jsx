@@ -118,9 +118,24 @@ export default function KPTemplate({ calc }) {
   const date = formatDate(calc.createdAt);
   const kpNumber = calc.id ? calc.id.slice(-6) : '000001';
 
+  // Формируем описание корпусов (размеры вместо листов)
+  const корпусОписание = (() => {
+    if (!r.корпуса || r.корпуса <= 0) return null;
+    const parts = [];
+    const низ = parseFloat(calc.низБаза) || 0;
+    const верх = parseFloat(calc.верхБаза) || 0;
+    const пеналы = parseFloat(calc.пеналы) || 0;
+
+    if (низ > 0) parts.push(`нижняя база ${низ} м`);
+    if (верх > 0) parts.push(`верхняя база ${верх} м`);
+    if (пеналы > 0) parts.push(`пеналы ${пеналы} шт`);
+
+    return parts.length > 0 ? `Корпус из ЛДСП 16мм — ${parts.join(', ')}` : 'Корпус из ЛДСП 16мм';
+  })();
+
   // Список "что входит" — только ненулевые позиции
   const включено = [
-    r.листы > 0 && `Корпус из ЛДСП 16мм — ${r.листы} листов`,
+    корпусОписание,
     r.фасады > 0 && calc.фасады?.some(f => f.материал) &&
       `Фасады: ${[...new Set(calc.фасады.filter(f => f.материал && parseFloat(f.площадь) > 0).map(f => f.материал))].join(', ')}`,
     r.фрезеровка > 0 && 'Фрезеровка фасадов',
@@ -302,13 +317,22 @@ export default function KPTemplate({ calc }) {
               <TableRow isCategory label="Корпуса" />
               <TableRow
                 label="ЛДСП 16мм — корпусные детали"
-                detail={`${r.листы} листов × ${calc.нижняя || 0}+${calc.верхняя || 0}м баз, ${calc.пеналы || 0} пен.`}
+                detail={(() => {
+                  const низ = parseFloat(calc.низБаза) || 0;
+                  const верх = parseFloat(calc.верхБаза) || 0;
+                  const пеналы = parseFloat(calc.пеналы) || 0;
+                  const parts = [];
+                  if (низ > 0) parts.push(`нижняя ${низ} м`);
+                  if (верх > 0) parts.push(`верхняя ${верх} м`);
+                  if (пеналы > 0) parts.push(`${пеналы} пенал${пеналы > 1 ? 'ов' : ''}`);
+                  return parts.join(', ') || '';
+                })()}
                 amount={fmt(кпКорпуса)}
               />
               <TableRow isSubtotal label="Итого корпуса" amount={fmt(кпКорпуса)} />
             </>}
 
-            {/* Фасады — цена за м² умножена на коэффициент скрытой наценки */}
+            {/* Фасады — только площадь, без формул */}
             {кпФасады > 0 && <>
               <TableRow isCategory label="Фасады" />
               {(calc.фасады || []).filter(f => parseFloat(f.площадь) > 0).map((f, i) => {
@@ -318,7 +342,7 @@ export default function KPTemplate({ calc }) {
                   <TableRow
                     key={i}
                     label={f.материал || 'Фасад'}
-                    detail={`${площадь} м² × ${fmt(ценаКП)}/м²`}
+                    detail={`${площадь} м²`}
                     amount={fmt(площадь * ценаКП)}
                   />
                 );
