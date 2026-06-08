@@ -156,17 +156,23 @@ export async function saveSettings(settings) {
 
 // Загрузить все расчёты (от новых к старым)
 export async function loadCalculations() {
-  const { data, error } = await supabase
-    .from('calculations')
-    .select('data, created_at')
-    .order('created_at', { ascending: false })
-    .limit(200);
+  try {
+    const { data, error } = await supabase
+      .from('calculations')
+      .select('data, created_at')
+      .order('created_at', { ascending: false })
+      .limit(200);
 
-  if (error) {
-    console.error('Supabase loadCalculations:', error);
+    if (error) {
+      console.error('Supabase loadCalculations error:', error);
+      return [];
+    }
+    if (!data) return [];
+    return data.map(row => row.data || row);
+  } catch (err) {
+    console.error('loadCalculations exception:', err);
     return [];
   }
-  return data.map(row => row.data);
 }
 
 // Загрузить один расчёт по id
@@ -203,12 +209,22 @@ export async function deleteCalculation(id) {
 // ── Проекты (очередь на расчёт) ─────────────────────────────────────────────
 
 export async function loadProjects() {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('data, created_at')
-    .order('created_at', { ascending: false });
-  if (error) { console.error('Supabase loadProjects:', error); return []; }
-  return data.map(row => row.data);
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('data, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase loadProjects error:', error);
+      return [];
+    }
+    if (!data) return [];
+    return data.map(row => row.data || row);
+  } catch (err) {
+    console.error('loadProjects exception:', err);
+    return [];
+  }
 }
 
 export async function saveProject(project) {

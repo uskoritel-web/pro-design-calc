@@ -321,24 +321,30 @@ export default function History() {
     }, 3000);
 
     try {
+      // Параллельная загрузка с таймаутом
       const timeout = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('timeout')), 30000)
       );
 
       const data = Promise.all([loadCalculations(), loadProjects()]);
-      const [c, p] = await Promise.race([data, timeout]);
+      const result = await Promise.race([data, timeout]);
+
+      const c = result[0] || [];
+      const p = result[1] || [];
 
       setCalcs(c);
       setProjects(p);
       setLoadError(false);
 
-      // Сохраняем в localStorage для быстрого показа при следующем открытии
+      // Сохраняем в localStorage (безопасно для старых браузеров)
       try {
-        localStorage.setItem('cached_calculations', JSON.stringify(c));
-        localStorage.setItem('cached_projects', JSON.stringify(p));
-        localStorage.setItem('cache_timestamp', Date.now().toString());
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('cached_calculations', JSON.stringify(c));
+          localStorage.setItem('cached_projects', JSON.stringify(p));
+          localStorage.setItem('cache_timestamp', Date.now().toString());
+        }
       } catch (e) {
-        console.warn('Не удалось сохранить кэш:', e);
+        // Игнорируем ошибки кэша
       }
     } catch (err) {
       console.error('Ошибка загрузки:', err);
@@ -360,30 +366,38 @@ export default function History() {
   useEffect(() => {
     // Пытаемся загрузить из кэша мгновенно
     try {
+      if (typeof localStorage === 'undefined') {
+        loadData();
+        return;
+      }
+
       const cachedCalcs = localStorage.getItem('cached_calculations');
       const cachedProjects = localStorage.getItem('cached_projects');
       const cacheTime = localStorage.getItem('cache_timestamp');
 
       if (cachedCalcs && cachedProjects) {
-        const calcs = JSON.parse(cachedCalcs);
-        const projects = JSON.parse(cachedProjects);
+        try {
+          const calcs = JSON.parse(cachedCalcs);
+          const projects = JSON.parse(cachedProjects);
 
-        // Показываем кэшированные данные сразу
-        setCalcs(calcs);
-        setProjects(projects);
-        setLoading(false);
+          // Показываем кэшированные данные сразу
+          setCalcs(calcs);
+          setProjects(projects);
+          setLoading(false);
 
-        // Проверяем возраст кэша
-        const cacheAge = Date.now() - parseInt(cacheTime || '0');
-        const cacheOld = cacheAge > 60000; // старше 1 минуты
+          // Проверяем возраст кэша
+          const cacheAge = Date.now() - parseInt(cacheTime || '0', 10);
+          const cacheOld = cacheAge > 60000; // старше 1 минуты
 
-        // Загружаем свежие данные в фоне (особенно если кэш старый)
-        if (cacheOld) {
-          // Через небольшую задержку чтобы UI успел отрисоваться
-          setTimeout(() => loadData(true), 500);
-        } else {
-          // Загружаем через 2 секунды если кэш свежий
-          setTimeout(() => loadData(true), 2000);
+          // Загружаем свежие данные в фоне
+          if (cacheOld) {
+            setTimeout(() => loadData(true), 500);
+          } else {
+            setTimeout(() => loadData(true), 2000);
+          }
+        } catch (parseErr) {
+          // Кэш битый - загружаем с сервера
+          loadData();
         }
       } else {
         // Нет кэша - обычная загрузка
