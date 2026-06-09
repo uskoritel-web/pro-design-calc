@@ -188,7 +188,10 @@ export default function Calculator() {
     const id = params.get('id');
     if (id) {
       loadCalculationById(id).then(existing => {
-        if (existing) setForm(f => ({ ...f, ...existing }));
+        if (existing) {
+          console.log('[Calculator] Loaded existing calc:', id, 'has image:', !!existing.изображение);
+          setForm(f => ({ ...f, ...existing }));
+        }
       });
     } else {
       // Предзаполнение из ссылки «Начать расчёт» со страницы проектов
@@ -283,13 +286,52 @@ export default function Calculator() {
     }));
   };
 
-  // Загрузить фото объекта
+  // Загрузить фото объекта (с автоматическим сжатием)
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    // Читаем как base64 и сохраняем в форму
+
+    // Проверяем что это изображение
+    if (!file.type.startsWith('image/')) {
+      alert('Можно загружать только изображения (JPG, PNG, WEBP)');
+      return;
+    }
+
+    // Читаем файл
     const reader = new FileReader();
-    reader.onload = (ev) => set('изображение', ev.target.result);
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        // Создаём canvas для сжатия
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Максимальные размеры: 1200x1200 (для КП достаточно)
+        let width = img.width;
+        let height = img.height;
+        const maxSize = 1200;
+
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = (height / width) * maxSize;
+            width = maxSize;
+          } else {
+            width = (width / height) * maxSize;
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Конвертируем в JPEG с качеством 0.8 (хороший баланс размер/качество)
+        const compressed = canvas.toDataURL('image/jpeg', 0.8);
+        console.log('[Calculator] Image compressed:', file.size, '→', compressed.length, 'bytes');
+        set('изображение', compressed);
+      };
+      img.src = ev.target.result;
+    };
     reader.readAsDataURL(file);
   };
 
