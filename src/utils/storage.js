@@ -180,13 +180,20 @@ export async function loadCalculations() {
 
 // Загрузить один расчёт по id
 export async function loadCalculationById(id) {
+  console.log('[loadCalculationById] START', id);
   const { data, error } = await supabase
     .from('calculations')
     .select('data')
     .eq('id', id)
     .single();
 
-  if (error || !data) return null;
+  console.log('[loadCalculationById] Response:', { data, error, hasData: !!data, hasError: !!error });
+
+  if (error || !data) {
+    console.error('[loadCalculationById] Failed:', error);
+    return null;
+  }
+  console.log('[loadCalculationById] Success, returning:', data.data?.id);
   return data.data;
 }
 
