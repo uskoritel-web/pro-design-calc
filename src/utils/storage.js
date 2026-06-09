@@ -66,11 +66,10 @@ export async function loadSettings() {
   const { data, error } = await supabase
     .from('settings')
     .select('data')
-    .eq('id', 'default')
-    .single();
+    .eq('id', 'default');
 
-  if (error || !data) return { ...defaultSettings };
-  const saved = data.data;
+  if (error || !data || data.length === 0) return { ...defaultSettings };
+  const saved = data[0].data;
   // Миграция: старое поле коэф → коэфНиз/коэфВерх
   if (saved.коэф !== undefined && saved.коэфНиз === undefined) {
     saved.коэфНиз = defaultSettings.коэфНиз;
@@ -184,17 +183,19 @@ export async function loadCalculationById(id) {
   const { data, error } = await supabase
     .from('calculations')
     .select('data')
-    .eq('id', id)
-    .single();
+    .eq('id', id);
 
-  console.log('[loadCalculationById] Response:', { data, error, hasData: !!data, hasError: !!error });
+  console.log('[loadCalculationById] Response:', { data, error, hasData: !!data, hasError: !!error, dataLength: data?.length });
 
-  if (error || !data) {
+  if (error || !data || data.length === 0) {
     console.error('[loadCalculationById] Failed:', error);
     return null;
   }
-  console.log('[loadCalculationById] Success, returning:', data.data?.id);
-  return data.data;
+
+  // Берём первый элемент массива (proxy не поддерживает .single())
+  const calc = data[0].data;
+  console.log('[loadCalculationById] Success, returning:', calc?.id);
+  return calc;
 }
 
 // Сохранить или обновить расчёт
