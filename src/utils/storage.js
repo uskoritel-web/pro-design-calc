@@ -179,23 +179,15 @@ export async function loadCalculations() {
 
 // Загрузить один расчёт по id
 export async function loadCalculationById(id) {
-  console.log('[loadCalculationById] START', id);
   const { data, error } = await supabase
     .from('calculations')
     .select('data')
     .eq('id', id);
 
-  console.log('[loadCalculationById] Response:', { data, error, hasData: !!data, hasError: !!error, dataLength: data?.length });
-
-  if (error || !data || data.length === 0) {
-    console.error('[loadCalculationById] Failed:', error);
-    return null;
-  }
+  if (error || !data || data.length === 0) return null;
 
   // Берём первый элемент массива (proxy не поддерживает .single())
-  const calc = data[0].data;
-  console.log('[loadCalculationById] Success, returning:', calc?.id);
-  return calc;
+  return data[0].data;
 }
 
 // Сохранить или обновить расчёт
