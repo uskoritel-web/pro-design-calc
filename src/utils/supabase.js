@@ -28,7 +28,7 @@ const customFetch = async (url, options = {}) => {
     // Строим URL к нашему proxy
     const proxyUrl = `/api/supabase?path=${encodeURIComponent(path)}${search ? '&' + search.slice(1) : ''}`;
 
-    console.log('[Supabase Proxy]', options.method || 'GET', path);
+    console.log('[Supabase Proxy]', options.method || 'GET', path + search);
 
     // Проксируем запрос как есть
     const response = await fetch(proxyUrl, {
