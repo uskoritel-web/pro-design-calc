@@ -209,9 +209,9 @@ export async function saveCalculation(calc) {
 
   if (error) {
     console.error('Supabase saveCalculation error:', error);
-    throw error;
+  } else {
+    console.log('[saveCalculation] Saved successfully');
   }
-  console.log('[saveCalculation] Saved successfully');
 }
 
 // Удалить расчёт
