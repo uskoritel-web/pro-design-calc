@@ -192,11 +192,16 @@ export async function loadCalculationById(id) {
 
 // Сохранить или обновить расчёт
 export async function saveCalculation(calc) {
+  console.log('[saveCalculation] Saving calc:', calc.id, 'has image:', !!calc.изображение, 'image size:', calc.изображение?.length || 0);
   const { error } = await supabase
     .from('calculations')
     .upsert({ id: calc.id, data: calc }, { onConflict: 'id' });
 
-  if (error) console.error('Supabase saveCalculation:', error);
+  if (error) {
+    console.error('Supabase saveCalculation error:', error);
+    throw error;
+  }
+  console.log('[saveCalculation] Saved successfully');
 }
 
 // Удалить расчёт

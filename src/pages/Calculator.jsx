@@ -297,7 +297,9 @@ export default function Calculator() {
   const doSave = async () => {
     setSaving(true);
     try {
-      await saveCalculation({ ...form, result });
+      const dataToSave = { ...form, result };
+      console.log('[Calculator] Saving, has image:', !!dataToSave.изображение, 'image size:', dataToSave.изображение?.length || 0);
+      await saveCalculation(dataToSave);
       setSaved(true);
     } catch (err) {
       console.error('Ошибка сохранения:', err);
