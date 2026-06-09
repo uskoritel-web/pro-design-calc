@@ -53,6 +53,18 @@ export default async function handler(req, res) {
     if (req.headers['accept']) {
       headers['Accept'] = req.headers['accept'];
     }
+    if (req.headers['x-client-info']) {
+      headers['x-client-info'] = req.headers['x-client-info'];
+    }
+
+    // Важно: для POST запросов к /calculations проверяем метод
+    // Если это upsert (обновление существующего), нужен специальный header
+    if (req.method === 'POST' && path.includes('/calculations')) {
+      // Для upsert Supabase требует Prefer: resolution=merge-duplicates
+      if (!headers['Prefer']) {
+        headers['Prefer'] = 'resolution=merge-duplicates';
+      }
+    }
 
     // Формируем запрос к Supabase
     const fetchOptions = {
