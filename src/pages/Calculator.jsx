@@ -188,10 +188,7 @@ export default function Calculator() {
     const id = params.get('id');
     if (id) {
       loadCalculationById(id).then(existing => {
-        if (existing) {
-          console.log('[Calculator] Loaded existing calc:', id, 'has image:', !!existing.изображение);
-          setForm(f => ({ ...f, ...existing }));
-        }
+        if (existing) setForm(f => ({ ...f, ...existing }));
       });
     } else {
       // Предзаполнение из ссылки «Начать расчёт» со страницы проектов
@@ -327,7 +324,6 @@ export default function Calculator() {
 
         // Конвертируем в JPEG с качеством 0.8 (хороший баланс размер/качество)
         const compressed = canvas.toDataURL('image/jpeg', 0.8);
-        console.log('[Calculator] Image compressed:', file.size, '→', compressed.length, 'bytes');
         set('изображение', compressed);
       };
       img.src = ev.target.result;
@@ -339,9 +335,7 @@ export default function Calculator() {
   const doSave = async () => {
     setSaving(true);
     try {
-      const dataToSave = { ...form, result };
-      console.log('[Calculator] Saving, has image:', !!dataToSave.изображение, 'image size:', dataToSave.изображение?.length || 0);
-      await saveCalculation(dataToSave);
+      await saveCalculation({ ...form, result });
       setSaved(true);
     } catch (err) {
       console.error('Ошибка сохранения:', err);

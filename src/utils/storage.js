@@ -179,41 +179,24 @@ export async function loadCalculations() {
 
 // Загрузить один расчёт по id
 export async function loadCalculationById(id) {
-  console.log('[loadCalculationById] Loading calc:', id);
   const { data, error } = await supabase
     .from('calculations')
     .select('data')
     .eq('id', id);
 
-  if (error) {
-    console.error('[loadCalculationById] Supabase error:', error);
-    return null;
-  }
+  if (error || !data || data.length === 0) return null;
 
-  if (!data || data.length === 0) {
-    console.warn('[loadCalculationById] Not found:', id);
-    return null;
-  }
-
-  const calc = data[0].data;
-  console.log('[loadCalculationById] Loaded:', calc?.id, 'has image:', !!calc?.изображение, 'image size:', calc?.изображение?.length || 0);
-  return calc;
+  // Берём первый элемент массива (proxy не поддерживает .single())
+  return data[0].data;
 }
 
 // Сохранить или обновить расчёт
 export async function saveCalculation(calc) {
-  console.log('[saveCalculation] Saving calc:', calc.id, 'has image:', !!calc.изображение, 'image size:', calc.изображение?.length || 0);
-
-  // Используем upsert без onConflict (proxy не поддерживает этот параметр)
   const { error } = await supabase
     .from('calculations')
     .upsert({ id: calc.id, data: calc });
 
-  if (error) {
-    console.error('Supabase saveCalculation error:', error);
-  } else {
-    console.log('[saveCalculation] Saved successfully');
-  }
+  if (error) console.error('Supabase saveCalculation:', error);
 }
 
 // Удалить расчёт

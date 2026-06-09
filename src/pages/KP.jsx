@@ -63,10 +63,7 @@ export default function KP() {
     const id = new URLSearchParams(window.location.search).get('id');
     if (id) {
       loadCalculationById(id).then(found => {
-        if (found) {
-          console.log('[KP] Loaded calc:', found.id, 'has image:', !!found.изображение, 'image size:', found.изображение?.length || 0);
-          setCalc(found);
-        }
+        if (found) setCalc(found);
         setFetching(false);
       });
     } else {
