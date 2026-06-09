@@ -146,7 +146,7 @@ export async function loadSettings() {
 export async function saveSettings(settings) {
   const { error } = await supabase
     .from('settings')
-    .upsert({ id: 'default', data: settings }, { onConflict: 'id' });
+    .upsert({ id: 'default', data: settings }, );
 
   if (error) console.error('Supabase saveSettings:', error);
 }
@@ -203,9 +203,11 @@ export async function loadCalculationById(id) {
 // Сохранить или обновить расчёт
 export async function saveCalculation(calc) {
   console.log('[saveCalculation] Saving calc:', calc.id, 'has image:', !!calc.изображение, 'image size:', calc.изображение?.length || 0);
+
+  // Используем upsert без onConflict (proxy не поддерживает этот параметр)
   const { error } = await supabase
     .from('calculations')
-    .upsert({ id: calc.id, data: calc }, { onConflict: 'id' });
+    .upsert({ id: calc.id, data: calc });
 
   if (error) {
     console.error('Supabase saveCalculation error:', error);
@@ -251,7 +253,7 @@ export async function loadProjects() {
 export async function saveProject(project) {
   const { error } = await supabase
     .from('projects')
-    .upsert({ id: project.id, data: project }, { onConflict: 'id' });
+    .upsert({ id: project.id, data: project }, );
   if (error) console.error('Supabase saveProject:', error);
 }
 
