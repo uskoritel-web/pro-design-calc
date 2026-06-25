@@ -146,7 +146,7 @@ export async function loadSettings() {
 export async function saveSettings(settings) {
   const { error } = await supabase
     .from('settings')
-    .upsert({ id: 'default', data: settings }, );
+    .upsert({ id: 'default', data: settings });
 
   if (error) console.error('Supabase saveSettings:', error);
 }
