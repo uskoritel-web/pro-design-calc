@@ -639,7 +639,16 @@ export default function Calculator() {
               <Field label="Материал столешницы">
                 <select
                   value={form.столешницаМатериал || ''}
-                  onChange={e => set('столешницаМатериал', e.target.value)}
+                  onChange={e => {
+                    const материал = e.target.value;
+                    set('столешницаМатериал', материал);
+
+                    // Автоматически подставляем цену из настроек
+                    const найден = (settings.прайсСтолешниц || []).find(s => s.материал === материал);
+                    if (найден && найден.цена) {
+                      set('столешница', найден.цена);
+                    }
+                  }}
                   className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
                     text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
                 >
@@ -775,7 +784,16 @@ export default function Calculator() {
               <Field label="Бренд фурнитуры">
                 <select
                   value={form.фурнитураБренд || ''}
-                  onChange={e => set('фурнитураБренд', e.target.value)}
+                  onChange={e => {
+                    const бренд = e.target.value;
+                    set('фурнитураБренд', бренд);
+
+                    // Автоматически подставляем цену из настроек
+                    const найден = (settings.брендыФурнитуры || []).find(b => b.бренд === бренд);
+                    if (найден && найден.стоимость) {
+                      set('фурнитура', найден.стоимость);
+                    }
+                  }}
                   className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
                     text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
                 >
