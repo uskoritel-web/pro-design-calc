@@ -216,9 +216,11 @@ export default function KP() {
             {/* Заголовок */}
             <div className="mb-3">
               <h1 className="text-white font-bold text-base sm:text-lg leading-tight">
-                {calc.клиент
-                  ? `КП для ${calc.клиент}`
-                  : calc.объект || 'Коммерческое предложение'}
+                {calc.заголовокКП || (
+                  calc.клиент
+                    ? `КП для ${calc.клиент}`
+                    : calc.объект || 'Коммерческое предложение'
+                )}
               </h1>
             </div>
 

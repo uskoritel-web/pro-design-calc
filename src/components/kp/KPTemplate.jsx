@@ -195,8 +195,12 @@ export default function KPTemplate({ calc }) {
 
         {/* Заголовок */}
         <h1 style={{ fontSize: 28, fontWeight: 900, color: DARK, margin: '0 0 6px', lineHeight: 1.2 }}>
-          Кухонный гарнитур
-          {calc.клиент ? ` для ${calc.клиент}` : ''}
+          {calc.заголовокКП || (
+            <>
+              Кухонный гарнитур
+              {calc.клиент ? ` для ${calc.клиент}` : ''}
+            </>
+          )}
         </h1>
         {calc.объект && (
           <p style={{ fontSize: 14, color: GRAY, margin: '0 0 24px' }}>📍 {calc.объект}</p>

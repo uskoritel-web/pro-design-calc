@@ -422,6 +422,13 @@ export default function Calculator() {
                 <Field label="Объект" hint="(необязательно)">
                   <TextInput value={form.объект} onChange={v => set('объект', v)} placeholder="Кухня, ул. Ленина 5" />
                 </Field>
+                <Field label="Заголовок КП" hint="(необязательно) — если не заполнен, будет: «КП для {клиент}»">
+                  <TextInput
+                    value={form.заголовокКП}
+                    onChange={v => set('заголовокКП', v)}
+                    placeholder="Коммерческое предложение для Ивана Петрова"
+                  />
+                </Field>
                 <Field label="Срок действия КП" hint="по умолчанию +14 дней">
                   <input
                     type="date"

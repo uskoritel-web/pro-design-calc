@@ -252,6 +252,7 @@ export function defaultForm(settings) {
     id: Date.now().toString(),
     клиент: '',
     объект: '',
+    заголовокКП: '',
     изображение: null,
     нижняя: '',
     верхняя: '',
