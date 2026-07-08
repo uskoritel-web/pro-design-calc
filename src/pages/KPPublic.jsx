@@ -5,7 +5,7 @@
 // Доп: мини-опрос клиента (3 вопроса)
 import { useState, useEffect, useRef, useCallback } from 'react';
 import KPTemplate from '../components/kp/KPTemplate';
-import { loadCalculationById } from '../utils/storage';
+import { loadPublicCalculation } from '../utils/storage';
 
 const QUESTIONS = [
   {
@@ -110,7 +110,7 @@ export default function KPPublic() {
     if (!id) { setFetching(false); return; }
     setFetching(true);
     setLoadError(false);
-    loadCalculationById(id)
+    loadPublicCalculation(id)
       .then(found => {
         if (found) {
           setCalc(found);

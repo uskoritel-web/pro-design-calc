@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import AppHeader from '../components/AppHeader';
 import HintBubble from '../components/HintBubble';
-import { loadCalculations, deleteCalculation, loadProjects, saveProject, deleteProject, genId } from '../utils/storage';
+import { loadCalculations, deleteCalculation, loadProjects, saveProject, deleteProject, genId, createProjectTopic } from '../utils/storage';
 import { fmt } from '../utils/calculations';
 
 // ─── Вспомогательные ────────────────────────────────────────────────────────
@@ -449,22 +449,17 @@ export default function History() {
   // ── Telegram тема ──
   const handleCreateTopic = async (project) => {
     try {
-      const resp = await fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'new_project', projectId: project.id, projectData: project }),
-      });
-      const data = await resp.json();
+      const data = await createProjectTopic(project.id);
       if (data.ok && data.threadId) {
         setProjects(prev => prev.map(p =>
           p.id === project.id ? { ...p, threadId: data.threadId, topicUrl: data.topicUrl } : p
         ));
       } else {
-        alert(`Не удалось создать тему: ${data.error || 'неизвестная ошибка'}\n\nПроверьте что бот добавлен в группу как администратор с правом управления темами.`);
+        alert('Не удалось создать тему. Проверьте, что бот добавлен в группу как администратор с правом управления темами.');
       }
     } catch (e) {
       console.error(e);
-      alert('Ошибка при создании темы. Попробуйте ещё раз.');
+      alert(e.message || 'Ошибка при создании темы. Попробуйте ещё раз.');
     }
   };
 

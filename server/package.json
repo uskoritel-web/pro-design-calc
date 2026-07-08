@@ -1,0 +1,13 @@
+{
+  "name": "pro-design-calc-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node API для калькулятора мебели на NetAngels (замена Supabase)",
+  "scripts": {
+    "start": "node hello.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

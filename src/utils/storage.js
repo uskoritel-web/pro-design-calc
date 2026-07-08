@@ -1,5 +1,72 @@
-// Настройки и расчёты хранятся в Supabase (общие для всех устройств)
-import { supabase } from './supabase';
+// Данные хранятся на своём сервере (NetAngels): Node API + PostgreSQL.
+// Все запросы идут на относительный /api с куками сессии.
+
+const API = '/api';
+
+// Обёртка над fetch: куки сессии + различение 401 (нужен вход) от ошибок.
+async function apiFetch(path, options = {}) {
+  let resp;
+  try {
+    resp = await fetch(API + path, {
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      ...options,
+    });
+  } catch (e) {
+    throw new Error('Нет связи с сервером. Проверьте интернет.');
+  }
+  if (resp.status === 401) {
+    // Сессия истекла/не выполнен вход — сообщаем приложению
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('pdc-unauthorized'));
+    const err = new Error('Требуется вход');
+    err.unauthorized = true;
+    throw err;
+  }
+  return resp;
+}
+
+async function apiGet(path) {
+  const r = await apiFetch(path);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('Ошибка сервера (' + r.status + ')');
+  return r.json();
+}
+
+async function apiSend(method, path, body) {
+  const r = await apiFetch(path, { method, body: body !== undefined ? JSON.stringify(body) : undefined });
+  if (!r.ok) {
+    let msg = 'Ошибка сервера (' + r.status + ')';
+    try { const j = await r.json(); if (j && j.error) msg += ': ' + j.error; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return r.json().catch(() => ({}));
+}
+
+// ── Аутентификация команды ────────────────────────────────────────────────
+export async function checkAuth() {
+  try {
+    const r = await fetch(API + '/me', { credentials: 'same-origin' });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!j.authed;
+  } catch {
+    return false;
+  }
+}
+
+export async function login(password) {
+  const r = await fetch(API + '/login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  return r.ok;
+}
+
+export async function logout() {
+  try { await fetch(API + '/logout', { method: 'POST', credentials: 'same-origin' }); } catch { /* ignore */ }
+}
 
 // Генерация неперебираемого уникального ID.
 // crypto.randomUUID — в защищённом контексте (https / localhost в Capacitor);
@@ -76,24 +143,14 @@ export const defaultSettings = {
   ],
 };
 
-// ── Настройки (Supabase) ──────────────────────────────────────────────────────
+// ── Настройки ─────────────────────────────────────────────────────────────
 
-// Загрузить настройки (общие для всех устройств)
+// Загрузить настройки (общие для всех устройств).
+// Ошибка сети → throw (не маскируем под «настроек нет», иначе пустой прайс
+// мог бы затереть реальный). Нет данных на сервере → дефолты.
 export async function loadSettings() {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('data')
-    .eq('id', 'default');
-
-  // Ошибка сети/БД — НЕ маскируем под «настроек ещё нет».
-  // Иначе форма настроек показала бы пустой прайс, а сохранение затёрло бы реальный.
-  if (error) {
-    console.error('Supabase loadSettings error:', error);
-    throw new Error('Не удалось загрузить настройки: ' + (error.message || 'нет связи'));
-  }
-  // Настроек ещё нет в базе — это нормальный первый запуск, отдаём дефолты.
-  if (!data || data.length === 0) return { ...defaultSettings };
-  const saved = data[0].data;
+  const saved = await apiGet('/settings'); // null если ещё не создано
+  if (!saved) return { ...defaultSettings };
   // Миграция: старое поле коэф → коэфНиз/коэфВерх
   if (saved.коэф !== undefined && saved.коэфНиз === undefined) {
     saved.коэфНиз = defaultSettings.коэфНиз;
@@ -170,110 +227,57 @@ export async function loadSettings() {
 
 // Сохранить настройки
 export async function saveSettings(settings) {
-  const { error } = await supabase
-    .from('settings')
-    .upsert({ id: 'default', data: settings });
-
-  if (error) {
-    console.error('Supabase saveSettings:', error);
-    throw new Error('Не удалось сохранить настройки: ' + (error.message || 'нет связи'));
-  }
+  await apiSend('PUT', '/settings', settings);
 }
 
-// ── Расчёты (Supabase) ───────────────────────────────────────────────────────
+// ── Расчёты ──────────────────────────────────────────────────────────────────
 
 // Загрузить все расчёты (от новых к старым)
 export async function loadCalculations() {
-  const { data, error } = await supabase
-    .from('calculations')
-    .select('data, created_at')
-    .order('created_at', { ascending: false })
-    .limit(200);
-
-  if (error) {
-    console.error('Supabase loadCalculations error:', error);
-    throw new Error('DB error: ' + error.message);
-  }
-  if (!data) return [];
-  // Отбрасываем битые записи без data, чтобы одна такая не роняла всю историю
-  return data.filter(row => row.data).map(row => row.data);
+  const data = await apiGet('/calculations');
+  return Array.isArray(data) ? data : [];
 }
 
-// Загрузить один расчёт по id.
-// Ошибка сети/БД — throw (чтобы отличать от «расчёт не найден»).
-// Расчёт отсутствует — возвращаем null.
+// Загрузить один расчёт по id (для внутренних страниц команды).
+// Ошибка сети — throw; расчёт отсутствует — null.
 export async function loadCalculationById(id) {
-  const { data, error } = await supabase
-    .from('calculations')
-    .select('data')
-    .eq('id', id);
+  return apiGet('/calculations/' + encodeURIComponent(id));
+}
 
-  if (error) {
-    console.error('Supabase loadCalculationById error:', error);
-    throw new Error('Не удалось загрузить расчёт: ' + (error.message || 'нет связи'));
-  }
-  if (!data || data.length === 0) return null;
-  // Берём первый элемент массива (proxy не поддерживает .single())
-  return data[0].data;
+// Загрузить БЕЗОПАСНУЮ версию расчёта для публичной страницы клиента
+// (без себестоимости, маржи, скрытой наценки).
+export async function loadPublicCalculation(id) {
+  return apiGet('/public/calc/' + encodeURIComponent(id));
 }
 
 // Сохранить или обновить расчёт
 export async function saveCalculation(calc) {
-  const { error } = await supabase
-    .from('calculations')
-    .upsert({ id: calc.id, data: calc });
-
-  if (error) {
-    console.error('Supabase saveCalculation:', error);
-    throw new Error('Не удалось сохранить расчёт: ' + (error.message || 'нет связи'));
-  }
+  await apiSend('PUT', '/calculations/' + encodeURIComponent(calc.id), calc);
 }
 
 // Удалить расчёт
 export async function deleteCalculation(id) {
-  const { error } = await supabase
-    .from('calculations')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Supabase deleteCalculation:', error);
-    throw new Error('Не удалось удалить расчёт: ' + (error.message || 'нет связи'));
-  }
+  await apiSend('DELETE', '/calculations/' + encodeURIComponent(id));
 }
 
 // ── Проекты (очередь на расчёт) ─────────────────────────────────────────────
 
 export async function loadProjects() {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('data, created_at')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Supabase loadProjects error:', error);
-    throw new Error('DB error: ' + error.message);
-  }
-  if (!data) return [];
-  return data.filter(row => row.data).map(row => row.data);
+  const data = await apiGet('/projects');
+  return Array.isArray(data) ? data : [];
 }
 
 export async function saveProject(project) {
-  const { error } = await supabase
-    .from('projects')
-    .upsert({ id: project.id, data: project });
-  if (error) {
-    console.error('Supabase saveProject:', error);
-    throw new Error('Не удалось сохранить проект: ' + (error.message || 'нет связи'));
-  }
+  await apiSend('PUT', '/projects/' + encodeURIComponent(project.id), project);
 }
 
 export async function deleteProject(id) {
-  const { error } = await supabase.from('projects').delete().eq('id', id);
-  if (error) {
-    console.error('Supabase deleteProject:', error);
-    throw new Error('Не удалось удалить проект: ' + (error.message || 'нет связи'));
-  }
+  await apiSend('DELETE', '/projects/' + encodeURIComponent(id));
+}
+
+// Создать Telegram-тему под проект. Возвращает { threadId, topicUrl }.
+export async function createProjectTopic(projectId) {
+  return apiSend('POST', '/projects/' + encodeURIComponent(projectId) + '/topic');
 }
 
 // ── Начальная форма расчёта ──────────────────────────────────────────────────
