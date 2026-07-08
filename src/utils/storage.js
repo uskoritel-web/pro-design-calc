@@ -1,6 +1,23 @@
-// Настройки — хранятся локально на устройстве (localStorage)
-// Расчёты — хранятся в Supabase (общие для всех устройств)
+// Настройки и расчёты хранятся в Supabase (общие для всех устройств)
 import { supabase } from './supabase';
+
+// Генерация неперебираемого уникального ID.
+// crypto.randomUUID — в защищённом контексте (https / localhost в Capacitor);
+// fallback на случай старых WebView.
+export function genId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+  } catch { /* fallthrough */ }
+  // Fallback: время + случайные символы (тоже не перебирается «в лоб»)
+  return (
+    Date.now().toString(36) +
+    '-' +
+    Math.random().toString(36).slice(2, 10) +
+    Math.random().toString(36).slice(2, 10)
+  );
+}
 
 export const defaultSettings = {
   ценаЛиста: 0,
@@ -68,7 +85,14 @@ export async function loadSettings() {
     .select('data')
     .eq('id', 'default');
 
-  if (error || !data || data.length === 0) return { ...defaultSettings };
+  // Ошибка сети/БД — НЕ маскируем под «настроек ещё нет».
+  // Иначе форма настроек показала бы пустой прайс, а сохранение затёрло бы реальный.
+  if (error) {
+    console.error('Supabase loadSettings error:', error);
+    throw new Error('Не удалось загрузить настройки: ' + (error.message || 'нет связи'));
+  }
+  // Настроек ещё нет в базе — это нормальный первый запуск, отдаём дефолты.
+  if (!data || data.length === 0) return { ...defaultSettings };
   const saved = data[0].data;
   // Миграция: старое поле коэф → коэфНиз/коэфВерх
   if (saved.коэф !== undefined && saved.коэфНиз === undefined) {
@@ -80,8 +104,10 @@ export async function loadSettings() {
   if (Array.isArray(saved.прайсФасадов)) {
     saved.прайсФасадов = saved.прайсФасадов.map(item => {
       if (item.закупка === undefined) {
-        // Совсем старый формат — только цена
-        return { id: item.id, материал: item.материал, закупка: item.цена || '', наценка: 30, цена: item.цена || '' };
+        // Совсем старый формат — было только поле «цена» (уже с наценкой).
+        // Сохраняем её как клиентскую цену, закупку оставляем пустой,
+        // чтобы наценка не применилась поверх уже розничной цены.
+        return { id: item.id, материал: item.материал, закупка: '', наценка: 30, цена: item.цена || '' };
       }
       // Новый формат без поля цена — вычислить
       if (item.цена === undefined) {
@@ -148,44 +174,45 @@ export async function saveSettings(settings) {
     .from('settings')
     .upsert({ id: 'default', data: settings });
 
-  if (error) console.error('Supabase saveSettings:', error);
+  if (error) {
+    console.error('Supabase saveSettings:', error);
+    throw new Error('Не удалось сохранить настройки: ' + (error.message || 'нет связи'));
+  }
 }
 
 // ── Расчёты (Supabase) ───────────────────────────────────────────────────────
 
 // Загрузить все расчёты (от новых к старым)
 export async function loadCalculations() {
-  try {
-    console.log('[loadCalculations] START');
-    const { data, error } = await supabase
-      .from('calculations')
-      .select('data, created_at')
-      .order('created_at', { ascending: false })
-      .limit(200);
+  const { data, error } = await supabase
+    .from('calculations')
+    .select('data, created_at')
+    .order('created_at', { ascending: false })
+    .limit(200);
 
-    console.log('[loadCalculations] Response:', { hasData: !!data, hasError: !!error, count: data?.length });
-
-    if (error) {
-      console.error('Supabase loadCalculations error:', error);
-      throw new Error('DB error: ' + error.message);
-    }
-    if (!data) return [];
-    return data.map(row => row.data || row);
-  } catch (err) {
-    console.error('loadCalculations exception:', err);
-    throw err; // Пробрасываем ошибку наверх
+  if (error) {
+    console.error('Supabase loadCalculations error:', error);
+    throw new Error('DB error: ' + error.message);
   }
+  if (!data) return [];
+  // Отбрасываем битые записи без data, чтобы одна такая не роняла всю историю
+  return data.filter(row => row.data).map(row => row.data);
 }
 
-// Загрузить один расчёт по id
+// Загрузить один расчёт по id.
+// Ошибка сети/БД — throw (чтобы отличать от «расчёт не найден»).
+// Расчёт отсутствует — возвращаем null.
 export async function loadCalculationById(id) {
   const { data, error } = await supabase
     .from('calculations')
     .select('data')
     .eq('id', id);
 
-  if (error || !data || data.length === 0) return null;
-
+  if (error) {
+    console.error('Supabase loadCalculationById error:', error);
+    throw new Error('Не удалось загрузить расчёт: ' + (error.message || 'нет связи'));
+  }
+  if (!data || data.length === 0) return null;
   // Берём первый элемент массива (proxy не поддерживает .single())
   return data[0].data;
 }
@@ -196,7 +223,10 @@ export async function saveCalculation(calc) {
     .from('calculations')
     .upsert({ id: calc.id, data: calc });
 
-  if (error) console.error('Supabase saveCalculation:', error);
+  if (error) {
+    console.error('Supabase saveCalculation:', error);
+    throw new Error('Не удалось сохранить расчёт: ' + (error.message || 'нет связи'));
+  }
 }
 
 // Удалить расчёт
@@ -206,50 +236,51 @@ export async function deleteCalculation(id) {
     .delete()
     .eq('id', id);
 
-  if (error) console.error('Supabase deleteCalculation:', error);
+  if (error) {
+    console.error('Supabase deleteCalculation:', error);
+    throw new Error('Не удалось удалить расчёт: ' + (error.message || 'нет связи'));
+  }
 }
 
 // ── Проекты (очередь на расчёт) ─────────────────────────────────────────────
 
 export async function loadProjects() {
-  try {
-    console.log('[loadProjects] START');
-    const { data, error } = await supabase
-      .from('projects')
-      .select('data, created_at')
-      .order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('projects')
+    .select('data, created_at')
+    .order('created_at', { ascending: false });
 
-    console.log('[loadProjects] Response:', { hasData: !!data, hasError: !!error, count: data?.length });
-
-    if (error) {
-      console.error('Supabase loadProjects error:', error);
-      throw new Error('DB error: ' + error.message);
-    }
-    if (!data) return [];
-    return data.map(row => row.data || row);
-  } catch (err) {
-    console.error('loadProjects exception:', err);
-    throw err; // Пробрасываем ошибку наверх
+  if (error) {
+    console.error('Supabase loadProjects error:', error);
+    throw new Error('DB error: ' + error.message);
   }
+  if (!data) return [];
+  return data.filter(row => row.data).map(row => row.data);
 }
 
 export async function saveProject(project) {
   const { error } = await supabase
     .from('projects')
-    .upsert({ id: project.id, data: project }, );
-  if (error) console.error('Supabase saveProject:', error);
+    .upsert({ id: project.id, data: project });
+  if (error) {
+    console.error('Supabase saveProject:', error);
+    throw new Error('Не удалось сохранить проект: ' + (error.message || 'нет связи'));
+  }
 }
 
 export async function deleteProject(id) {
   const { error } = await supabase.from('projects').delete().eq('id', id);
-  if (error) console.error('Supabase deleteProject:', error);
+  if (error) {
+    console.error('Supabase deleteProject:', error);
+    throw new Error('Не удалось удалить проект: ' + (error.message || 'нет связи'));
+  }
 }
 
 // ── Начальная форма расчёта ──────────────────────────────────────────────────
 
 export function defaultForm(settings) {
   return {
-    id: Date.now().toString(),
+    id: genId(),
     клиент: '',
     объект: '',
     заголовокКП: '',
@@ -257,13 +288,14 @@ export function defaultForm(settings) {
     нижняя: '',
     верхняя: '',
     пеналы: '',
-    фасады: [{ id: Date.now(), материал: '', площадь: '', цена: '' }],
+    фасады: [{ id: genId(), материал: '', площадь: '', цена: '' }],
     фрезеровкаВкл: false,
     фрезеровкаОбъём: '',
     фрезеровкаЦена: '',
     столешницаРежим: 'manual',
     столешницаМатериал: '',
     столешница: '',
+    столешницаПлощадь: '',
     столешницаДлина: '',
     каменьБелыйМетры: '',
     мойкаКамень: '',
@@ -271,6 +303,7 @@ export function defaultForm(settings) {
     подклейка: '',
     фурнитура: '',
     фурнитураБренд: '',
+    фурнитураРежим: 'позиции', // 'позиции' — по деталям, 'бренд' — фикс. сумма бренда
     фурнитураПозиции: settings.прайсФурнитуры.map(f => ({
       id: f.id,
       количество: f.id === 'ящики' ? 3 : ''

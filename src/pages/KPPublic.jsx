@@ -60,60 +60,84 @@ function ScaledPreview({ docRef, calc }) {
   );
 }
 
+// Осталось времени — без посекундного отсчёта (не давим на клиента)
 function formatTimeLeft(ms) {
   if (ms <= 0) return null;
   const d = Math.floor(ms / 86400000);
   const h = Math.floor((ms % 86400000) / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
   if (d > 1)  return `${d} дн. ${h} ч.`;
-  if (d === 1) return `1 день ${h} ч. ${m} мин.`;
-  if (h > 0)  return `${h} ч. ${m} мин. ${s} сек.`;
-  return `${m} мин. ${s} сек.`;
+  if (d === 1) return `1 день ${h} ч.`;
+  if (h > 0)  return `${h} ч. ${m} мин.`;
+  return `${m} мин.`;
+}
+
+// Конец дня срока действия в локальной таймзоне (а не UTC-полночь)
+function endOfDay(dateStr) {
+  const [y, mo, da] = String(dateStr).split('-').map(Number);
+  if (!y || !mo || !da) {
+    const d = new Date(dateStr);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }
+  return new Date(y, mo - 1, da, 23, 59, 59, 999);
+}
+
+// Имя PDF-файла: заголовок → клиент → объект, без запрещённых символов
+function kpFileName(calc) {
+  const base = calc?.заголовокКП || calc?.клиент || calc?.объект || 'КП';
+  const safe = base.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return `КП ПроДизайн — ${safe || 'КП'}.pdf`;
 }
 
 export default function KPPublic() {
   const [calc, setCalc]           = useState(null);
   const [fetching, setFetching]   = useState(true);
+  const [loadError, setLoadError] = useState(false); // ошибка сети (не «не найдено»)
   const [loading, setLoading]     = useState(false);
   const [confirmState, setConfirm] = useState('idle'); // idle | loading | done
+  const [confirmError, setConfirmError] = useState(false);
   const [timeLeft, setTimeLeft]   = useState(null);
   const [answers, setAnswers]     = useState({ цена: null, состав: null, шаг: null });
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState(false);
   const docRef = useRef(null);
+  const pdfRef = useRef(null); // немасштабированный экземпляр для PDF
 
-  useEffect(() => {
+  const load = useCallback(() => {
     const id = new URLSearchParams(window.location.search).get('id');
     if (!id) { setFetching(false); return; }
-    loadCalculationById(id).then(found => {
-      if (found) {
-        setCalc(found);
-        if (found.confirmed_at) setConfirm('done');
-        if (found.feedback)     setFeedbackSent(true);
-        // Задача 7: трекинг открытия (пропускаем если preview=1)
-        const urlParams = new URLSearchParams(window.location.search);
-        const isPreview = urlParams.get('preview') === '1';
-        if (found.трекингВкл !== false && !isPreview) {
-          fetch('/api/notify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'open', calcId: id }),
-          }).catch(() => {});
+    setFetching(true);
+    setLoadError(false);
+    loadCalculationById(id)
+      .then(found => {
+        if (found) {
+          setCalc(found);
+          if (found.confirmed_at) setConfirm('done');
+          if (found.feedback)     setFeedbackSent(true);
+          // Трекинг открытия (пропускаем если preview=1)
+          const isPreview = new URLSearchParams(window.location.search).get('preview') === '1';
+          if (found.трекингВкл !== false && !isPreview) {
+            fetch('/api/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'open', calcId: id }),
+            }).catch(() => {});
+          }
         }
-      }
-      setFetching(false);
-    });
+        // found === null → расчёт не найден (не ошибка)
+      })
+      .catch(err => { console.error('Ошибка загрузки КП:', err); setLoadError(true); })
+      .finally(() => setFetching(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   // Задача 9: обратный отсчёт
   useEffect(() => {
     if (!calc?.срокДействия || calc.таймерВкл === false) return;
-    const tick = () => {
-      const d = new Date(calc.срокДействия);
-      d.setHours(23, 59, 59, 999);
-      setTimeLeft(d - Date.now());
-    };
+    const tick = () => setTimeLeft(endOfDay(calc.срокДействия) - Date.now());
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -123,51 +147,79 @@ export default function KPPublic() {
   const handleConfirm = async () => {
     if (confirmState !== 'idle') return;
     setConfirm('loading');
+    setConfirmError(false);
     try {
-      await fetch('/api/notify', {
+      const resp = await fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'confirm', calcId: calc.id }),
       });
-    } catch {}
-    setConfirm('done');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      setConfirm('done');
+    } catch (err) {
+      console.error('Ошибка подтверждения:', err);
+      // Не показываем ложное «подтверждено» — даём повторить
+      setConfirm('idle');
+      setConfirmError(true);
+    }
   };
 
   // Мини-опрос: отправить
   const handleFeedback = async () => {
     if (!QUESTIONS.every(q => answers[q.id])) return;
     setFeedbackLoading(true);
+    setFeedbackError(false);
     try {
-      await fetch('/api/notify', {
+      const resp = await fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'feedback', calcId: calc.id, feedback: answers }),
       });
-    } catch {}
-    setFeedbackSent(true);
-    setFeedbackLoading(false);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      setFeedbackSent(true);
+    } catch (err) {
+      console.error('Ошибка отправки отзыва:', err);
+      setFeedbackError(true);
+    } finally {
+      setFeedbackLoading(false);
+    }
   };
 
   const handleDownloadPDF = async () => {
-    if (!docRef.current) return;
+    const source = pdfRef.current || docRef.current;
+    if (!source) return;
     setLoading(true);
     try {
       const html2pdf = (await import('html2pdf.js')).default;
-      const name = calc?.клиент || calc?.объект || 'КП';
       await html2pdf().set({
-        margin: 0, filename: `КП ПроДизайн — ${name}.pdf`,
+        margin: 0, filename: kpFileName(calc),
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff', windowWidth: 794 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'] },
-      }).from(docRef.current).save();
-    } catch (e) { console.error(e); }
+      }).from(source).save();
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось создать PDF. Попробуйте ещё раз или откройте страницу в другом браузере.');
+    }
     finally { setLoading(false); }
   };
 
   if (fetching) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-gray-400 text-sm">Загрузка...</div>
+    </div>
+  );
+
+  // Ошибка сети — предложение существует, но не загрузилось
+  if (loadError) return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center text-center px-4">
+      <div className="text-5xl mb-4">⚠️</div>
+      <h2 className="text-2xl font-bold text-gray-600 mb-2">Не удалось загрузить</h2>
+      <p className="text-gray-400 text-sm mb-6">Проверьте интернет-соединение и попробуйте снова.</p>
+      <button onClick={load} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm">
+        Обновить
+      </button>
     </div>
   );
 
@@ -179,7 +231,7 @@ export default function KPPublic() {
     </div>
   );
 
-  const title     = calc.клиент ? `КП для ${calc.клиент}` : calc.объект || 'Коммерческое предложение';
+  const title     = calc.заголовокКП || (calc.клиент ? `КП для ${calc.клиент}` : calc.объект || 'Коммерческое предложение');
   const isExpired = calc.срокДействия && calc.таймерВкл !== false && timeLeft !== null && timeLeft <= 0;
   const allAnswered = QUESTIONS.every(q => answers[q.id]);
 
@@ -205,7 +257,12 @@ export default function KPPublic() {
         <div className={`print:hidden border-b ${isExpired ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
             {isExpired ? (
-              <div className="text-sm text-red-600">Срок действия предложения истёк. Свяжитесь с нами для актуального расчёта.</div>
+              <div className="text-sm text-red-600">
+                Срок действия предложения истёк.{' '}
+                <a href="https://pro-design-ekb.ru" target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+                  Запросить актуальный расчёт →
+                </a>
+              </div>
             ) : (
               <>
                 <div className="text-sm text-blue-700">
@@ -222,7 +279,7 @@ export default function KPPublic() {
       )}
 
       {/* Документ */}
-      <div className="py-6 sm:py-10 flex justify-center px-2 sm:px-0 print:p-0">
+      <div className="py-6 sm:py-10 flex justify-center px-2 sm:px-0 print:hidden">
         <ScaledPreview docRef={docRef} calc={calc} />
       </div>
 
@@ -240,10 +297,17 @@ export default function KPPublic() {
                   <div className="text-green-600 text-sm">Менеджер свяжется с вами в ближайшее время.</div>
                 </div>
               ) : (
-                <button onClick={handleConfirm} disabled={confirmState === 'loading'}
-                  className="w-full py-4 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold text-base rounded-2xl transition-colors flex items-center justify-center gap-2">
-                  {confirmState === 'loading' ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Отправляем…</> : '✅ Подтвердить предложение'}
-                </button>
+                <>
+                  <button onClick={handleConfirm} disabled={confirmState === 'loading'}
+                    className="w-full py-4 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold text-base rounded-2xl transition-colors flex items-center justify-center gap-2">
+                    {confirmState === 'loading' ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Отправляем…</> : '✅ Подтвердить предложение'}
+                  </button>
+                  {confirmError && (
+                    <div className="mt-2 text-sm text-red-600 text-center">
+                      Не удалось отправить. Проверьте интернет и нажмите ещё раз.
+                    </div>
+                  )}
+                </>
               )
             )}
 
@@ -295,6 +359,11 @@ export default function KPPublic() {
                         : allAnswered ? 'Отправить отзыв →' : 'Ответьте на все вопросы'
                       }
                     </button>
+                    {feedbackError && (
+                      <div className="text-sm text-red-600 text-center">
+                        Не удалось отправить отзыв. Проверьте интернет и попробуйте снова.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -304,6 +373,17 @@ export default function KPPublic() {
       )}
 
       <div className="hidden print:block"><KPTemplate calc={calc} /></div>
+
+      {/* Скрытый немасштабированный экземпляр для генерации PDF (фикс перекосов) */}
+      <div
+        aria-hidden="true"
+        className="print:hidden"
+        style={{ position: 'absolute', left: -99999, top: 0, width: 794, pointerEvents: 'none' }}
+      >
+        <div ref={pdfRef}>
+          <KPTemplate calc={calc} />
+        </div>
+      </div>
     </div>
   );
 }

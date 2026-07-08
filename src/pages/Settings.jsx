@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import AppHeader from '../components/AppHeader';
 import HintBubble from '../components/HintBubble';
-import { loadSettings, saveSettings, defaultSettings } from '../utils/storage';
+import { loadSettings, saveSettings, defaultSettings, genId } from '../utils/storage';
 
 function Field({ label, hint, children }) {
   return (
@@ -16,17 +16,22 @@ function Field({ label, hint, children }) {
   );
 }
 
-function NumInput({ value, onChange, placeholder, suffix }) {
+// type="text" + inputMode="decimal": цифровая клавиатура на мобильных,
+// но ввод запятой не обнуляет значение (в отличие от type="number").
+function NumInput({ value, onChange, placeholder, suffix, disabled }) {
+  const handle = (raw) => onChange(raw.replace(',', '.').replace(/[^\d.]/g, ''));
   return (
     <div className="relative">
       <input
-        type="number"
+        type="text"
+        inputMode="decimal"
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => handle(e.target.value)}
         placeholder={placeholder || '0'}
-        min={0}
+        disabled={disabled}
         className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
           text-white placeholder-white/30 rounded-xl px-4 py-3 text-sm outline-none transition-colors
+          disabled:opacity-40 disabled:cursor-not-allowed
           [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       />
       {suffix && (
@@ -41,9 +46,18 @@ function NumInput({ value, onChange, placeholder, suffix }) {
 export default function Settings() {
   const [settings, setSettings] = useState({ ...defaultSettings });
   const [savedMsg, setSavedMsg] = useState('');
+  const [loading, setLoading] = useState(true);   // пока грузим — форма заблокирована
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    loadSettings().then(s => setSettings(s));
+    loadSettings()
+      .then(s => setSettings(s))
+      .catch(err => {
+        console.error('Ошибка загрузки настроек:', err);
+        // Не даём сохранять, иначе пустые дефолты затрут реальный прайс
+        setLoadError(err.message || 'Не удалось загрузить настройки');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const set = (field, value) => setSettings(s => ({ ...s, [field]: value }));
@@ -68,7 +82,7 @@ export default function Settings() {
   const addFasadRow = () => {
     setSettings(s => ({
       ...s,
-      прайсФасадов: [...s.прайсФасадов, { id: Date.now(), материал: '', закупка: '', наценка: 30, цена: '' }],
+      прайсФасадов: [...s.прайсФасадов, { id: genId(), материал: '', закупка: '', наценка: 30, цена: '' }],
     }));
   };
 
@@ -107,7 +121,7 @@ export default function Settings() {
   const addCountertopRow = () => {
     setSettings(s => ({
       ...s,
-      прайсСтолешниц: [...s.прайсСтолешниц, { id: Date.now(), материал: '', закупка: '', наценка: 30, цена: '' }],
+      прайсСтолешниц: [...s.прайсСтолешниц, { id: genId(), материал: '', закупка: '', наценка: 30, цена: '' }],
     }));
   };
 
@@ -129,6 +143,13 @@ export default function Settings() {
   };
 
   const handleSave = async () => {
+    // Блокируем сохранение, пока настройки не загрузились или загрузка упала —
+    // иначе пустые дефолты перезапишут реальный прайс всей команды.
+    if (loading || loadError) {
+      setSavedMsg('❌ Дождитесь загрузки настроек');
+      setTimeout(() => setSavedMsg(''), 4000);
+      return;
+    }
     setSavedMsg('Сохранение...');
     try {
       await saveSettings(settings);
@@ -151,15 +172,34 @@ export default function Settings() {
           Заполните цены один раз — приложение будет подставлять их в каждый расчёт автоматически.
         </p>
 
+        {/* Идёт загрузка настроек — форма заблокирована, чтобы не затереть прайс */}
+        {loading && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-5 py-4 mb-6 flex items-center gap-3">
+            <span className="inline-block w-4 h-4 border-2 border-blue-400/40 border-t-blue-400 rounded-full animate-spin" />
+            <span className="text-blue-100/90 text-sm">Загружаем текущий прайс…</span>
+          </div>
+        )}
+
+        {/* Ошибка загрузки — сохранять нельзя, иначе затрём реальный прайс */}
+        {loadError && (
+          <div className="bg-red-500/10 border border-red-500/40 rounded-xl px-5 py-4 mb-6 flex items-center gap-3">
+            <span className="text-red-400 text-xl">⚠</span>
+            <span className="text-red-100/90 text-sm">
+              Не удалось загрузить настройки. Сохранение отключено, чтобы не потерять прайс. Обновите страницу.
+            </span>
+          </div>
+        )}
+
         {/* Подсказка если прайс пустой */}
-        {!settings.ценаЛиста && (
+        {!loading && !loadError && !settings.ценаЛиста && (
           <HintBubble hintKey="settings-empty-price" icon="💡">
             <strong>Начните с цены листа ЛДСП</strong> — это основа всех расчётов. Укажите полную стоимость (распил + кромка + присадка).
             Затем заполните прайс фасадов и фурнитуры.
           </HintBubble>
         )}
 
-        <div className="space-y-6">
+        {/* Пока грузим прайс — форма недоступна для редактирования */}
+        <div className={`space-y-6 ${loading ? 'opacity-40 pointer-events-none select-none' : ''}`}>
 
           {/* Корпуса */}
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
@@ -442,9 +482,11 @@ export default function Settings() {
                     </div>
                     <button
                       onClick={() => removeCountertopRow(item.id)}
-                      className="hidden sm:flex w-8 h-8 items-center justify-center text-white/30 hover:text-red-400 transition-colors text-xl flex-shrink-0"
+                      className="flex w-full sm:w-8 h-9 sm:h-8 items-center justify-center gap-1 text-white/30 hover:text-red-400 transition-colors flex-shrink-0
+                        border border-white/10 sm:border-0 rounded-xl sm:rounded-none text-sm sm:text-xl"
                     >
-                      ×
+                      <span className="sm:hidden">Удалить</span>
+                      <span>×</span>
                     </button>
                   </div>
                 );
@@ -523,7 +565,7 @@ export default function Settings() {
                 onClick={() => {
                   setSettings(s => ({
                     ...s,
-                    брендыФурнитуры: [...s.брендыФурнитуры, { id: Date.now(), бренд: '', стоимость: '' }],
+                    брендыФурнитуры: [...s.брендыФурнитуры, { id: genId(), бренд: '', стоимость: '' }],
                   }));
                 }}
                 className="w-full sm:w-auto px-4 py-2 text-sm text-brand-blue border border-brand-blue/30 hover:bg-brand-blue/10 rounded-xl transition-colors"
@@ -603,18 +645,18 @@ export default function Settings() {
           {/* Кнопка сохранить */}
           <button
             onClick={handleSave}
-            disabled={savedMsg === 'Сохранение...'}
+            disabled={savedMsg === 'Сохранение...' || loading || !!loadError}
             className={`w-full py-4 font-bold rounded-2xl transition-all text-sm ${
               savedMsg === '✅ Сохранено!'
                 ? 'bg-green-600 text-white'
-                : savedMsg === '❌ Ошибка сохранения'
+                : savedMsg.startsWith('❌')
                 ? 'bg-red-600 text-white'
-                : savedMsg === 'Сохранение...'
-                ? 'bg-gray-600 text-white/50 cursor-wait'
+                : (savedMsg === 'Сохранение...' || loading || loadError)
+                ? 'bg-gray-600 text-white/50 cursor-not-allowed'
                 : 'bg-brand-blue hover:bg-brand-blue/90 text-white'
             }`}
           >
-            {savedMsg || 'Сохранить настройки'}
+            {loading ? 'Загрузка настроек…' : (savedMsg || 'Сохранить настройки')}
           </button>
 
         </div>

@@ -8,6 +8,15 @@ const GRAY = '#6B7280';
 const LIGHT = '#F3F4F6';
 const DARK = '#111827';
 
+// Русская плюрализация: pluralize(2, 'пенал', 'пенала', 'пеналов') → 'пенала'
+function pluralize(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
 // Логотип ПроДизайн (SVG-версия для PDF)
 function KPLogo({ white = false }) {
   const logoSrc = white
@@ -125,13 +134,14 @@ export default function KPTemplate({ calc }) {
     return String(num).padStart(3, '0');
   })();
 
-  // Формируем описание корпусов (размеры вместо листов)
+  // Формируем описание корпусов (размеры вместо листов).
+  // Поля формы называются `нижняя` / `верхняя` (не `низБаза` / `верхБаза`).
   const корпусОписание = (() => {
     if (!r.корпуса || r.корпуса <= 0) return null;
     const parts = [];
-    const низ = parseFloat(calc.низБаза) || 0;
-    const верх = parseFloat(calc.верхБаза) || 0;
-    const пеналы = parseFloat(calc.пеналы) || 0;
+    const низ = parseFloat(calc.нижняя ?? calc.низБаза) || 0;
+    const верх = parseFloat(calc.верхняя ?? calc.верхБаза) || 0;
+    const пеналы = parseInt(calc.пеналы) || 0;
 
     if (низ > 0) parts.push(`нижняя база ${низ} м`);
     if (верх > 0) parts.push(`верхняя база ${верх} м`);
@@ -148,7 +158,7 @@ export default function KPTemplate({ calc }) {
     r.фрезеровка > 0 && 'Фрезеровка фасадов',
     r.столешница > 0 && 'Столешница',
     r.фурнитура > 0 && 'Фурнитура',
-    r.монтаж > 0 && `Профессиональный монтаж (${r.монтажПроцент}%)`,
+    r.монтаж > 0 && `Профессиональный монтаж${r.монтажПроцент ? ` (${r.монтажПроцент}%)` : ''}`,
     r.доставка > 0 && 'Доставка на объект',
     r.технолог > 0 && 'Технолог (чертежи)',
   ].filter(Boolean);
@@ -247,6 +257,8 @@ export default function KPTemplate({ calc }) {
             {кпКорпуса > 0 && <div>Мебель: {fmt(итогоКлиент - кпДоставка - кпМонтаж - видимаяСумма + скидкаСумма)}</div>}
             {кпМонтаж > 0 && <div>Монтаж: {fmt(кпМонтаж)}</div>}
             {кпДоставка > 0 && <div>Доставка: {fmt(кпДоставка)}</div>}
+            {видимаяСумма > 0 && <div>Доп. услуги: {fmt(видимаяСумма)}</div>}
+            {скидкаСумма > 0 && <div>Скидка: −{fmt(скидкаСумма)}</div>}
           </div>
         </div>
 
@@ -273,7 +285,8 @@ export default function KPTemplate({ calc }) {
           padding: '16px 20px', borderLeft: `4px solid ${BLUE}`,
         }} className="no-break">
           <div style={{ fontSize: 12, fontWeight: 700, color: DARK, marginBottom: 8 }}>Условия</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          {/* flex + width:50% вместо grid — grid плохо рендерится в html2canvas (перекосы PDF) */}
+          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
             {[
               '70% предоплата на материалы',
               'Остаток — в день доставки',
@@ -288,7 +301,7 @@ export default function KPTemplate({ calc }) {
               })(),
               'Гарантия на выполненные работы',
             ].map((c, i) => (
-              <div key={i} style={{ fontSize: 12, color: GRAY, display: 'flex', gap: 6 }}>
+              <div key={i} style={{ width: '50%', paddingRight: 12, boxSizing: 'border-box', marginBottom: 6, fontSize: 12, color: GRAY, display: 'flex', gap: 6 }}>
                 <span style={{ color: BLUE, flexShrink: 0 }}>→</span> {c}
               </div>
             ))}
@@ -332,18 +345,18 @@ export default function KPTemplate({ calc }) {
           </thead>
           <tbody>
             {/* Корпуса */}
-            {r.листы > 0 && <>
+            {кпКорпуса > 0 && <>
               <TableRow isCategory label="Корпуса" />
               <TableRow
                 label="ЛДСП 16мм — корпусные детали"
                 detail={(() => {
-                  const низ = parseFloat(calc.низБаза) || 0;
-                  const верх = parseFloat(calc.верхБаза) || 0;
-                  const пеналы = parseFloat(calc.пеналы) || 0;
+                  const низ = parseFloat(calc.нижняя ?? calc.низБаза) || 0;
+                  const верх = parseFloat(calc.верхняя ?? calc.верхБаза) || 0;
+                  const пеналы = parseInt(calc.пеналы) || 0;
                   const parts = [];
                   if (низ > 0) parts.push(`нижняя ${низ} м`);
                   if (верх > 0) parts.push(`верхняя ${верх} м`);
-                  if (пеналы > 0) parts.push(`${пеналы} пенал${пеналы > 1 ? 'ов' : ''}`);
+                  if (пеналы > 0) parts.push(`${пеналы} ${pluralize(пеналы, 'пенал', 'пенала', 'пеналов')}`);
                   return parts.join(', ') || '';
                 })()}
                 amount={fmt(кпКорпуса)}
@@ -374,7 +387,7 @@ export default function KPTemplate({ calc }) {
               <TableRow isCategory label="Фрезеровка" />
               <TableRow
                 label="Фрезеровка фасадов"
-                detail={`${calc.фрезеровкаОбъём} м²`}
+                detail={calc.фрезеровкаОбъём ? `${calc.фрезеровкаОбъём} м²` : ''}
                 amount={fmt(кпФрезеровка)}
               />
             </>}
@@ -405,7 +418,7 @@ export default function KPTemplate({ calc }) {
               {кпМонтаж > 0 && (
                 <TableRow
                   label="Профессиональный монтаж"
-                  detail={`${r.монтажПроцент}%`}
+                  detail={r.монтажПроцент ? `${r.монтажПроцент}%` : ''}
                   amount={fmt(кпМонтаж)}
                 />
               )}

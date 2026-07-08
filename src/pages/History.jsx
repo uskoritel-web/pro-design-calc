@@ -1,8 +1,8 @@
 // Страница «Проекты» — две вкладки: очередь на расчёт и готовые расчёты
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AppHeader from '../components/AppHeader';
 import HintBubble from '../components/HintBubble';
-import { loadCalculations, deleteCalculation, loadProjects, saveProject, deleteProject } from '../utils/storage';
+import { loadCalculations, deleteCalculation, loadProjects, saveProject, deleteProject, genId } from '../utils/storage';
 import { fmt } from '../utils/calculations';
 
 // ─── Вспомогательные ────────────────────────────────────────────────────────
@@ -37,14 +37,14 @@ function ProjectForm({ initial, onSave, onCancel, saving }) {
 
   const isNew = !initial;
 
-  const addLink = () => setCсылки(s => [...s, { id: Date.now(), заголовок: '', url: '' }]);
+  const addLink = () => setCсылки(s => [...s, { id: genId(), заголовок: '', url: '' }]);
   const updateLink = (id, field, val) => setCсылки(s => s.map(l => l.id === id ? { ...l, [field]: val } : l));
   const removeLink = (id) => setCсылки(s => s.filter(l => l.id !== id));
 
   const handleSave = () => {
     if (!клиент.trim() && !объект.trim() && !номер.trim()) return;
     onSave({
-      id:        initial?.id || Date.now().toString(),
+      id:        initial?.id || genId(),
       клиент:    клиент.trim(),
       объект:    объект.trim(),
       номер:     номер.trim(),
@@ -266,12 +266,18 @@ function ProjectCard({ project, onDelete, onEdit, onCreateTopic }) {
               <div>
                 <div className="text-xs text-white/40 mb-1.5 font-medium">Ссылки</div>
                 <div className="space-y-1">
-                  {project.ссылки.map((link, i) => (
-                    <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-brand-blue hover:underline text-sm">
-                      🔗 {link.заголовок || link.url}
-                    </a>
-                  ))}
+                  {project.ссылки.map((link, i) => {
+                    // Разрешаем только http(s)-ссылки (защита от javascript:-URL)
+                    const raw = (link.url || '').trim();
+                    const safe = /^https?:\/\//i.test(raw) ? raw : (raw ? `https://${raw}` : '');
+                    if (!safe) return null;
+                    return (
+                      <a key={i} href={safe} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-brand-blue hover:underline text-sm">
+                        🔗 {link.заголовок || link.url}
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -311,11 +317,16 @@ export default function History() {
   const [editingProject, setEditing]  = useState(null);
   const [search, setSearch]           = useState('');
 
+  // Счётчик локальных изменений: если во время фонового обновления пользователь
+  // что-то удалил/сохранил, не перезатираем его действие устаревшим ответом.
+  const mutationRef = useRef(0);
+
   const loadData = async (silent = false, retryCount = 0) => {
     if (!silent) {
       setLoading(true);
       setLoadError(false);
     }
+    const startVersion = mutationRef.current;
 
     // Показываем предупреждение если загрузка >3 сек
     const slowTimer = setTimeout(() => {
@@ -338,6 +349,13 @@ export default function History() {
       const p = result[1] || [];
 
       setErrorDetails(`✓ Получено: ${c.length} расчётов, ${p.length} проектов`);
+
+      // Фоновое обновление устарело — за это время были локальные изменения
+      // (удаление/сохранение). Не перезатираем их старым снимком.
+      if (silent && mutationRef.current !== startVersion) {
+        clearTimeout(slowTimer);
+        return;
+      }
 
       setCalcs(c);
       setProjects(p);
@@ -455,7 +473,17 @@ export default function History() {
 
   const handleSaveProject = async (project, тгРежим = 'skip') => {
     setSaving(true);
-    await saveProject(project);
+    mutationRef.current++;
+    // Сначала пытаемся записать в базу; UI обновляем только при успехе,
+    // иначе получим «сохранённый» проект, который после перезагрузки исчезнет.
+    try {
+      await saveProject(project);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Не удалось сохранить проект. Проверьте интернет и попробуйте снова.');
+      setSaving(false);
+      return;
+    }
     const newProjects = (() => {
       const exists = projects.find(p => p.id === project.id);
       return exists ? projects.map(p => p.id === project.id ? project : p) : [project, ...projects];
@@ -480,8 +508,15 @@ export default function History() {
   };
 
   const handleDeleteProject = async (id) => {
-    if (!confirm('Удалить этот проект?')) return;
-    await deleteProject(id);
+    if (!confirm('Удалить этот проект? Это действие нельзя отменить.')) return;
+    mutationRef.current++;
+    try {
+      await deleteProject(id);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Не удалось удалить проект. Проверьте интернет и попробуйте снова.');
+      return;
+    }
     const newProjects = projects.filter(p => p.id !== id);
     setProjects(newProjects);
 
@@ -497,8 +532,20 @@ export default function History() {
   // ── Расчёты ──
   const handleDeleteCalc = async (e, id) => {
     e.stopPropagation();
-    if (!confirm('Удалить этот расчёт?')) return;
-    await deleteCalculation(id);
+    const calc = calcs.find(c => c.id === id);
+    const wasSent = calc && (calc.last_notified_at || calc.confirmed_at);
+    const msg = wasSent
+      ? 'Удалить этот расчёт? Ссылка на КП, отправленная клиенту, перестанет работать. Это действие нельзя отменить.'
+      : 'Удалить этот расчёт? Это действие нельзя отменить.';
+    if (!confirm(msg)) return;
+    mutationRef.current++;
+    try {
+      await deleteCalculation(id);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Не удалось удалить расчёт. Проверьте интернет и попробуйте снова.');
+      return;
+    }
     const newCalcs = calcs.filter(c => c.id !== id);
     setCalcs(newCalcs);
 

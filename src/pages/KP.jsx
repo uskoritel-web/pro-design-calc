@@ -51,60 +51,78 @@ import AppHeader from '../components/AppHeader';
 import KPTemplate from '../components/kp/KPTemplate';
 import { loadCalculationById } from '../utils/storage';
 
+// Публичный адрес приложения. В нативном приложении (Capacitor) origin —
+// https://localhost, поэтому клиентские ссылки строим от рабочего домена.
+const PUBLIC_BASE = 'https://pro-design-calc.vercel.app';
+function publicBase() {
+  if (typeof window !== 'undefined' && !Capacitor.isNativePlatform()) {
+    return window.location.origin;
+  }
+  return PUBLIC_BASE;
+}
+
+// Имя PDF-файла: заголовок → клиент → объект, без запрещённых в ФС символов
+function kpFileName(calc) {
+  const base = calc?.заголовокКП || calc?.клиент || calc?.объект || 'КП';
+  const safe = base.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return `КП ПроДизайн — ${safe || 'КП'}.pdf`;
+}
+
 export default function KP() {
   const [calc, setCalc] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [copied, setCopied] = useState(false);
-  // Единственный ref — только на видимый предпросмотр
+  // Видимый предпросмотр (может быть масштабирован на мобильном)
   const docRef = useRef(null);
+  // Скрытый немасштабированный экземпляр — из него строим PDF (без перекосов)
+  const pdfRef = useRef(null);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('id');
     if (id) {
-      loadCalculationById(id).then(found => {
-        if (found) setCalc(found);
-        setFetching(false);
-      });
+      loadCalculationById(id)
+        .then(found => {
+          if (found) setCalc(found);
+          // found === null → расчёт не найден (не ошибка сети)
+        })
+        .catch(err => { console.error('Ошибка загрузки КП:', err); setLoadError(true); })
+        .finally(() => setFetching(false));
     } else {
       setFetching(false);
     }
   }, []);
 
   const isNative = Capacitor.isNativePlatform();
+  // Узел для генерации PDF: немасштабированный скрытый экземпляр
+  const pdfSource = () => pdfRef.current || docRef.current;
 
-  // Вспомогательная: генерирует base64 PDF и возвращает данные
+  // Общие опции html2pdf (одно место — чтобы конфиги не разъезжались)
+  const pdfOptions = () => ({
+    margin: 0,
+    filename: kpFileName(calc),
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff', windowWidth: 794 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'] },
+  });
+
+  // Генерирует base64 PDF из немасштабированного экземпляра
   const buildPDF = async () => {
     const html2pdf = (await import('html2pdf.js')).default;
-    const clientName = calc?.клиент || calc?.объект || 'КП';
-    const filename = `КП ПроДизайн — ${clientName}.pdf`;
-    const options = {
-      margin: 0,
-      filename,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff', windowWidth: 794 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'] },
-    };
-    const dataUri = await html2pdf().set(options).from(docRef.current).output('datauristring');
-    return { base64: dataUri.split(',')[1], filename, options, html2pdf };
+    const options = pdfOptions();
+    const dataUri = await html2pdf().set(options).from(pdfSource()).output('datauristring');
+    return { base64: dataUri.split(',')[1], filename: options.filename };
   };
 
   // Десктоп: обычное скачивание
   const handleDownloadPDF = async () => {
-    if (!docRef.current) return;
+    if (!pdfSource()) return;
     setLoading(true);
     try {
       const html2pdf = (await import('html2pdf.js')).default;
-      const clientName = calc?.клиент || calc?.объект || 'КП';
-      const filename = `КП ПроДизайн — ${clientName}.pdf`;
-      await html2pdf().set({
-        margin: 0, filename,
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff', windowWidth: 794 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] },
-      }).from(docRef.current).save();
+      await html2pdf().set(pdfOptions()).from(pdfSource()).save();
     } catch (e) {
       console.error('PDF error:', e);
       alert('Ошибка при создании PDF.');
@@ -115,7 +133,7 @@ export default function KP() {
 
   // Android: сохранить файл и открыть в PDF-просмотрщике
   const handleAndroidSave = async () => {
-    if (!docRef.current) return;
+    if (!pdfSource()) return;
     setLoading(true);
     try {
       const { base64, filename } = await buildPDF();
@@ -143,7 +161,7 @@ export default function KP() {
 
   // Android: поделиться через системный share-диалог
   const handleAndroidShare = async () => {
-    if (!docRef.current) return;
+    if (!pdfSource()) return;
     setLoading(true);
     try {
       const { base64, filename } = await buildPDF();
@@ -167,11 +185,39 @@ export default function KP() {
 
   const handlePrint = () => window.print();
 
+  // Копирование в буфер с фолбэком для старых WebView / insecure-контекста
+  const copyText = async (text) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch { /* fallthrough */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   const handleCopyLink = async () => {
-    const url = `${window.location.origin}/kp-public?id=${calc.id}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    const url = `${publicBase()}/kp-public?id=${calc.id}`;
+    const ok = await copyText(url);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } else {
+      prompt('Скопируйте ссылку для клиента вручную:', url);
+    }
   };
 
   if (fetching) {
@@ -189,15 +235,25 @@ export default function KP() {
     return (
       <div className="min-h-screen bg-gray-900">
         <AppHeader />
-        <div className="flex flex-col items-center justify-center py-32 text-center">
-          <div className="text-5xl mb-4">📄</div>
-          <h2 className="text-2xl font-bold text-white/60 mb-2">КП не найдено</h2>
+        <div className="flex flex-col items-center justify-center py-32 text-center px-4">
+          <div className="text-5xl mb-4">{loadError ? '⚠️' : '📄'}</div>
+          <h2 className="text-2xl font-bold text-white/60 mb-2">
+            {loadError ? 'Не удалось загрузить КП' : 'КП не найдено'}
+          </h2>
           <p className="text-white/30 text-sm mb-6">
-            Сохраните расчёт в калькуляторе и нажмите «Сформировать КП»
+            {loadError
+              ? 'Проверьте интернет и обновите страницу.'
+              : 'Сохраните расчёт в калькуляторе и нажмите «Сформировать КП»'}
           </p>
-          <a href="/app" className="text-brand-blue hover:underline text-sm">
-            ← Открыть калькулятор
-          </a>
+          {loadError ? (
+            <button onClick={() => window.location.reload()} className="text-brand-blue hover:underline text-sm">
+              Обновить страницу
+            </button>
+          ) : (
+            <a href="/app" className="text-brand-blue hover:underline text-sm">
+              ← Открыть калькулятор
+            </a>
+          )}
         </div>
       </div>
     );
@@ -244,10 +300,12 @@ export default function KP() {
                 {copied ? '✓ Скопировано' : '🔗 Ссылка для клиента'}
               </button>
               <button
-                onClick={() => {
-                  const previewUrl = `${window.location.origin}/kp?id=${calc.id}&preview=1`;
-                  navigator.clipboard.writeText(previewUrl);
-                  alert('Скопирована ссылка для команды (без трекинга)');
+                onClick={async () => {
+                  // preview=1 отключает трекинг — обрабатывается на /kp-public
+                  const previewUrl = `${publicBase()}/kp-public?id=${calc.id}&preview=1`;
+                  const ok = await copyText(previewUrl);
+                  if (ok) alert('Скопирована ссылка для команды (без трекинга)');
+                  else prompt('Ссылка для команды (без трекинга):', previewUrl);
                 }}
                 className="flex-1 sm:flex-none border border-white/20 hover:border-white/40 text-white/70 hover:text-white
                   font-medium px-3 py-2 rounded-xl transition-colors text-xs sm:text-sm"
@@ -313,6 +371,19 @@ export default function KP() {
       {/* Версия для печати — без ref, html2pdf не должен её трогать */}
       <div className="hidden print:block">
         <KPTemplate calc={calc} />
+      </div>
+
+      {/* Скрытый немасштабированный экземпляр для генерации PDF.
+          Вынесен за экран (не display:none — иначе html2canvas не отрендерит).
+          Фикс перекосов PDF: PDF строится отсюда, а не из scale()-превью. */}
+      <div
+        aria-hidden="true"
+        className="print-hidden"
+        style={{ position: 'absolute', left: -99999, top: 0, width: 794, pointerEvents: 'none' }}
+      >
+        <div ref={pdfRef}>
+          <KPTemplate calc={calc} />
+        </div>
       </div>
 
     </div>

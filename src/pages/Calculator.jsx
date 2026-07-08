@@ -1,9 +1,12 @@
 // Главная страница — расчёт стоимости мебели
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import AppHeader from '../components/AppHeader';
 import HintBubble from '../components/HintBubble';
 import { calcTotal, calcTableTopCutting, fmt } from '../utils/calculations';
-import { loadSettings, saveSettings, defaultSettings, defaultForm, saveCalculation, loadCalculationById } from '../utils/storage';
+import { loadSettings, defaultSettings, defaultForm, saveCalculation, loadCalculationById, genId } from '../utils/storage';
+
+// Ключ автосохранения черновика нового расчёта в localStorage
+const DRAFT_KEY = 'calc-draft-v1';
 
 // ─── Вспомогательные компоненты ─────────────────────────────────────────────
 
@@ -35,16 +38,23 @@ function Field({ label, hint, children }) {
   );
 }
 
-// Числовой инпут
-function NumInput({ value, onChange, placeholder, suffix, min = 0 }) {
+// Числовой инпут.
+// type="text" + inputMode="decimal": на мобильных даёт цифровую клавиатуру,
+// но НЕ обнуляет значение при вводе запятой (как это делает type="number").
+// Запятую сразу нормализуем в точку, лишние символы отбрасываем.
+function NumInput({ value, onChange, placeholder, suffix }) {
+  const handle = (raw) => {
+    const clean = raw.replace(',', '.').replace(/[^\d.]/g, '');
+    onChange(clean);
+  };
   return (
     <div className="relative">
       <input
-        type="number"
+        type="text"
+        inputMode="decimal"
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => handle(e.target.value)}
         placeholder={placeholder || '0'}
-        min={min}
         className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
           text-white placeholder-white/30 rounded-xl px-4 py-3 text-sm outline-none transition-colors
           [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
@@ -129,11 +139,17 @@ function AdjustRow({ тип, значение, onТип, onЗначение, acc
 
 // ─── Валидация формы ──────────────────────────────────────────────────────────
 
-function validateForm(form) {
+function validateForm(form, result) {
   const issues = [];
   const нижняя  = parseFloat(form.нижняя)  || 0;
   const верхняя = parseFloat(form.верхняя) || 0;
   const пеналы  = parseInt(form.пеналы)    || 0;
+
+  // Позиции, которые молча дают 0 ₽ (незаполненная цена) — предупреждаем,
+  // чтобы менеджер не отправил клиенту заниженное КП.
+  (result?.предупреждения || []).forEach(message =>
+    issues.push({ level: 'warning', message })
+  );
 
   if (нижняя === 0 && верхняя === 0 && пеналы === 0)
     issues.push({ level: 'error', message: 'Укажите хотя бы один параметр корпусов' });
@@ -155,7 +171,7 @@ function validateForm(form) {
 
   const ящики = (form.фурнитураПозиции || []).find(p => p.id === 'ящики');
   if (ящики && (parseFloat(ящики.количество) || 0) === 0)
-    issues.push({ level: 'info', message: 'Ящики не указаны — будет использовано значение по умолчанию: 3' });
+    issues.push({ level: 'info', message: 'Ящики не указаны — не войдут в стоимость фурнитуры' });
 
   if (!form.клиент)
     issues.push({ level: 'info', message: 'Клиент не указан — КП будет без имени' });
@@ -170,44 +186,112 @@ function validateForm(form) {
 
 export default function Calculator() {
   const [settings, setSettings] = useState({ ...defaultSettings });
-
-  // Загружаем настройки из Supabase при старте
-  useEffect(() => {
-    loadSettings().then(s => setSettings(s));
-  }, []);
+  const [settingsError, setSettingsError] = useState(null);
 
   const [form, setForm] = useState(() => defaultForm(settings));
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationIssues, setValidationIssues] = useState(null);
   const [pendingAction, setPendingAction]         = useState(null);
+  const [draftForm, setDraftForm] = useState(null); // найденный черновик
 
-  // Загружаем существующий расчёт или предзаполняем из URL-параметров проекта
+  // touched — пользователь (или загрузка существующего) уже менял форму.
+  // isExisting — редактируем сохранённый расчёт (?id=...), настройки не подставляем.
+  const touchedRef = useRef(false);
+  const isExistingRef = useRef(false);
+
+  const markTouched = () => { touchedRef.current = true; };
+
+  // Загрузка настроек + существующего расчёта / предзаполнения / черновика
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
+    isExistingRef.current = !!id;
+
+    loadSettings()
+      .then(s => {
+        setSettings(s);
+        // Новый расчёт и пользователь ещё не трогал форму —
+        // подставляем монтаж/доставку/технолога/позиции из НАСТРОЕК,
+        // а не из захардкоженных дефолтов.
+        if (!id && !touchedRef.current) {
+          const fresh = defaultForm(s);
+          setForm(f => ({
+            ...f,
+            монтажПроцент: fresh.монтажПроцент,
+            доставка: fresh.доставка,
+            технолог: fresh.технолог,
+            фурнитураПозиции: fresh.фурнитураПозиции,
+          }));
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        setSettingsError(err.message || 'Не удалось загрузить настройки');
+      });
+
     if (id) {
       loadCalculationById(id).then(existing => {
-        if (existing) setForm(f => ({ ...f, ...existing }));
-      });
+        if (existing) {
+          touchedRef.current = true;
+          setForm(f => ({ ...f, ...existing }));
+        }
+      }).catch(err => console.error('Ошибка загрузки расчёта:', err));
     } else {
-      // Предзаполнение из ссылки «Начать расчёт» со страницы проектов
       const клиент   = params.get('клиент');
       const объект   = params.get('объект');
       const projectId = params.get('projectId');
       if (клиент || объект || projectId) {
+        touchedRef.current = true;
         setForm(f => ({
           ...f,
           ...(клиент    ? { клиент }    : {}),
           ...(объект    ? { объект }    : {}),
           ...(projectId ? { projectId } : {}),
         }));
+      } else {
+        // Есть ли несохранённый черновик от прошлого раза?
+        try {
+          const raw = localStorage.getItem(DRAFT_KEY);
+          if (raw) setDraftForm(JSON.parse(raw));
+        } catch { /* ignore */ }
       }
     }
   }, []);
 
+  // Автосохранение черновика нового расчёта (страховка от потери данных)
+  useEffect(() => {
+    if (saved || isExistingRef.current || !touchedRef.current) return;
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(form)); } catch { /* ignore */ }
+  }, [form, saved]);
+
+  // Предупреждение при уходе со страницы с несохранёнными изменениями
+  useEffect(() => {
+    const handler = (e) => {
+      if (!saved && touchedRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [saved]);
+
+  const restoreDraft = () => {
+    if (draftForm) {
+      touchedRef.current = true;
+      setForm(draftForm);
+    }
+    setDraftForm(null);
+  };
+  const discardDraft = () => {
+    setDraftForm(null);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+  };
+
   // Обновить одно поле формы
   const set = (field, value) => {
+    markTouched();
     setSaved(false);
     setForm(f => ({ ...f, [field]: value }));
   };
@@ -221,8 +305,15 @@ export default function Calculator() {
     return calcTableTopCutting(form.столешницаДлина, settings.столешницы);
   }, [form.столешницаРежим, form.столешницаДлина, settings.столешницы]);
 
+  // Цена выбранного материала столешницы за м² (0 — цены нет в прайсе)
+  const столешницаЦенаМ2 = useMemo(() => {
+    const найден = (settings.прайсСтолешниц || []).find(s => s.материал === form.столешницаМатериал);
+    return найден ? (parseFloat(String(найден.цена ?? '').replace(',', '.')) || 0) : 0;
+  }, [settings.прайсСтолешниц, form.столешницаМатериал]);
+
   // Обновить строку фасада
   const updateFasad = (id, field, value) => {
+    markTouched();
     setSaved(false);
     setForm(f => ({
       ...f,
@@ -234,26 +325,33 @@ export default function Calculator() {
 
   // Добавить строку фасада
   const addFasad = () => {
+    markTouched();
+    setSaved(false);
     setForm(f => ({
       ...f,
-      фасады: [...f.фасады, { id: Date.now(), материал: '', площадь: '', цена: '' }],
+      фасады: [...f.фасады, { id: genId(), материал: '', площадь: '', цена: '' }],
     }));
   };
 
   // Удалить строку фасада
   const removeFasad = (id) => {
+    markTouched();
+    setSaved(false);
     setForm(f => ({
       ...f,
       фасады: f.фасады.filter(item => item.id !== id),
     }));
   };
 
-  // При выборе материала подставляем цену для клиента из прайса
+  // При выборе материала подставляем цену для клиента из прайса.
+  // Если цены в прайсе нет — очищаем поле (а не оставляем цену прошлого
+  // материала), чтобы менеджер ввёл её вручную и не отправил чужую цену.
   const onMaterialSelect = (id, материал) => {
+    markTouched();
+    setSaved(false);
     const priceItem = settings.прайсФасадов.find(p => p.материал === материал);
     let autoЦена = '';
     if (priceItem) {
-      // Явно заданная цена имеет приоритет; иначе вычисляем из закупки и наценки
       if (priceItem.цена) {
         autoЦена = priceItem.цена;
       } else {
@@ -266,7 +364,7 @@ export default function Calculator() {
       ...f,
       фасады: f.фасады.map(item =>
         item.id === id
-          ? { ...item, материал, цена: autoЦена || item.цена }
+          ? { ...item, материал, цена: autoЦена }
           : item
       ),
     }));
@@ -274,6 +372,7 @@ export default function Calculator() {
 
   // Обновить количество позиции фурнитуры
   const setFurnitureQty = (posId, количество) => {
+    markTouched();
     setSaved(false);
     setForm(f => ({
       ...f,
@@ -285,50 +384,68 @@ export default function Calculator() {
 
   // Загрузить фото объекта (с автоматическим сжатием)
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files[0];
+    // Сбрасываем input сразу, чтобы повторный выбор того же файла сработал
+    const resetInput = () => { input.value = ''; };
     if (!file) return;
 
-    // Проверяем что это изображение
     if (!file.type.startsWith('image/')) {
       alert('Можно загружать только изображения (JPG, PNG, WEBP)');
+      resetInput();
       return;
     }
 
-    // Читаем файл
+    const failMsg = 'Не удалось обработать это изображение. Возможно, формат не поддерживается (например, HEIC с iPhone) — сделайте скриншот или выберите JPG/PNG.';
+
     const reader = new FileReader();
+    reader.onerror = () => { alert(failMsg); resetInput(); };
     reader.onload = (ev) => {
       const img = new Image();
+      img.onerror = () => { alert(failMsg); resetInput(); };
       img.onload = () => {
-        // Создаём canvas для сжатия
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
 
-        // Максимальные размеры: 1200x1200 (для КП достаточно)
-        let width = img.width;
-        let height = img.height;
-        const maxSize = 1200;
+          // Максимальные размеры: 1200x1200 (для КП достаточно)
+          let width = img.width;
+          let height = img.height;
+          const maxSize = 1200;
 
-        if (width > maxSize || height > maxSize) {
-          if (width > height) {
-            height = (height / width) * maxSize;
-            width = maxSize;
-          } else {
-            width = (width / height) * maxSize;
-            height = maxSize;
+          if (width > maxSize || height > maxSize) {
+            if (width > height) {
+              height = (height / width) * maxSize;
+              width = maxSize;
+            } else {
+              width = (width / height) * maxSize;
+              height = maxSize;
+            }
           }
+
+          canvas.width = width;
+          canvas.height = height;
+          // Белый фон — иначе прозрачный PNG станет чёрным при конверте в JPEG
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressed = canvas.toDataURL('image/jpeg', 0.8);
+          set('изображение', compressed);
+        } catch (err) {
+          console.error('Ошибка обработки изображения:', err);
+          alert(failMsg);
+        } finally {
+          resetInput();
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Конвертируем в JPEG с качеством 0.8 (хороший баланс размер/качество)
-        const compressed = canvas.toDataURL('image/jpeg', 0.8);
-        set('изображение', compressed);
       };
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
   };
 
   // Фактическое сохранение (вызывается после прохождения валидации)
@@ -337,9 +454,10 @@ export default function Calculator() {
     try {
       await saveCalculation({ ...form, result });
       setSaved(true);
+      clearDraft();
     } catch (err) {
       console.error('Ошибка сохранения:', err);
-      alert('Не удалось сохранить расчёт. Проверьте интернет и попробуйте снова.');
+      alert(err.message || 'Не удалось сохранить расчёт. Проверьте интернет и попробуйте снова.');
     } finally {
       setSaving(false);
     }
@@ -349,24 +467,28 @@ export default function Calculator() {
     setSaving(true);
     try {
       await saveCalculation({ ...form, result });
+      setSaved(true);
+      clearDraft();
+      // Намеренный переход — снимаем флаг, чтобы beforeunload не мешал
+      touchedRef.current = false;
       window.location.href = `/kp?id=${form.id}`;
     } catch (err) {
       console.error('Ошибка формирования КП:', err);
-      alert('Не удалось сформировать КП. Проверьте интернет и попробуйте снова.');
+      alert(err.message || 'Не удалось сформировать КП. Проверьте интернет и попробуйте снова.');
       setSaving(false);
     }
   };
 
   // Запуск валидации перед действием
   const handleSave = () => {
-    const issues = validateForm(form);
+    const issues = validateForm(form, result);
     if (issues.length === 0) { doSave(); return; }
     setValidationIssues(issues);
     setPendingAction('save');
   };
 
   const handleGenerateKP = () => {
-    const issues = validateForm(form);
+    const issues = validateForm(form, result);
     if (issues.length === 0) { doGenerateKP(); return; }
     setValidationIssues(issues);
     setPendingAction('kp');
@@ -392,6 +514,42 @@ export default function Calculator() {
           <strong>Как начать:</strong> заполните базы (длина гарнитура), выберите материал фасадов, укажите фурнитуру.
           Нажмите <strong>?</strong> в шапке если нужна подробная инструкция.
         </HintBubble>
+
+        {/* Предложение восстановить несохранённый черновик */}
+        {draftForm && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-5 py-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-blue-400 text-xl">💾</span>
+              <span className="text-blue-100/90 text-sm">
+                Найден несохранённый расчёт{draftForm.клиент ? ` для «${draftForm.клиент}»` : ''}. Восстановить?
+              </span>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={restoreDraft}
+                className="bg-brand-blue hover:bg-brand-blue/90 text-white font-semibold px-4 py-2 rounded-xl text-sm"
+              >
+                Восстановить
+              </button>
+              <button
+                onClick={discardDraft}
+                className="border border-white/20 hover:border-white/40 text-white/70 hover:text-white font-medium px-4 py-2 rounded-xl text-sm"
+              >
+                Начать заново
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Ошибка загрузки настроек — прайс мог не загрузиться */}
+        {settingsError && (
+          <div className="bg-red-500/10 border border-red-500/40 rounded-xl px-5 py-4 mb-6 flex items-center gap-3">
+            <span className="text-red-400 text-xl">⚠</span>
+            <span className="text-red-100/90 text-sm">
+              Не удалось загрузить настройки (прайс). Расчёт может идти по нулевым ценам — обновите страницу.
+            </span>
+          </div>
+        )}
 
         {/* Предупреждение если не заполнены настройки */}
         {!hasSheetPrice && (
@@ -648,13 +806,22 @@ export default function Calculator() {
                   value={form.столешницаМатериал || ''}
                   onChange={e => {
                     const материал = e.target.value;
-                    set('столешницаМатериал', материал);
-
-                    // Автоматически подставляем цену из настроек
                     const найден = (settings.прайсСтолешниц || []).find(s => s.материал === материал);
-                    if (найден && найден.цена) {
-                      set('столешница', найден.цена);
-                    }
+                    const ценаМ2 = найден ? (parseFloat(String(найден.цена ?? '').replace(',', '.')) || 0) : 0;
+                    markTouched();
+                    setSaved(false);
+                    setForm(f => {
+                      const площ = parseFloat(String(f.столешницаПлощадь ?? '').replace(',', '.')) || 0;
+                      return {
+                        ...f,
+                        столешницаМатериал: материал,
+                        // Пересчитываем итог только если есть и цена/м², и площадь.
+                        // Иначе не трогаем поле (ручной ввод не затирается).
+                        столешница: (ценаМ2 > 0 && площ > 0)
+                          ? String(Math.round(ценаМ2 * площ))
+                          : f.столешница,
+                      };
+                    });
                   }}
                   className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
                     text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
@@ -684,9 +851,32 @@ export default function Calculator() {
               </div>
 
               {form.столешницаРежим !== 'calc' ? (
-                <Field label="Стоимость столешницы" hint="вводится вручную">
-                  <NumInput value={form.столешница} onChange={v => set('столешница', v)} placeholder="0" suffix="₽" />
-                </Field>
+                столешницаЦенаМ2 > 0 ? (
+                  // У материала есть цена за м² — считаем стоимость из площади
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Площадь столешницы" hint="м²">
+                      <NumInput
+                        value={form.столешницаПлощадь || ''}
+                        onChange={v => {
+                          set('столешницаПлощадь', v);
+                          const площ = parseFloat(String(v).replace(',', '.')) || 0;
+                          set('столешница', площ > 0 ? String(Math.round(столешницаЦенаМ2 * площ)) : '');
+                        }}
+                        placeholder="0"
+                        suffix="м²"
+                      />
+                    </Field>
+                    <Field label="Стоимость" hint={`${столешницаЦенаМ2} ₽/м²`}>
+                      <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white/70 text-right">
+                        {fmt(parseFloat(form.столешница) || 0)}
+                      </div>
+                    </Field>
+                  </div>
+                ) : (
+                  <Field label="Стоимость столешницы" hint="вводится вручную">
+                    <NumInput value={form.столешница} onChange={v => set('столешница', v)} placeholder="0" suffix="₽" />
+                  </Field>
+                )
               ) : (
                 <div className="space-y-4">
                   <Field label="Общая длина столешницы" hint="мм">
@@ -787,19 +977,23 @@ export default function Calculator() {
 
             {/* Блок: Фурнитура */}
             <Card title="Фурнитура" badge={result.фурнитура > 0 ? fmt(result.фурнитура) : undefined}>
-              {/* Выбор бренда фурнитуры */}
+              {/* Выбор бренда фурнитуры (показывается в КП всегда) */}
               <Field label="Бренд фурнитуры">
                 <select
                   value={form.фурнитураБренд || ''}
                   onChange={e => {
                     const бренд = e.target.value;
-                    set('фурнитураБренд', бренд);
-
-                    // Автоматически подставляем цену из настроек
+                    markTouched();
+                    setSaved(false);
                     const найден = (settings.брендыФурнитуры || []).find(b => b.бренд === бренд);
-                    if (найден && найден.стоимость) {
-                      set('фурнитура', найден.стоимость);
-                    }
+                    setForm(f => ({
+                      ...f,
+                      фурнитураБренд: бренд,
+                      // В режиме «по бренду» сразу подставляем фикс. сумму бренда
+                      ...(f.фурнитураРежим === 'бренд' && найден?.стоимость
+                        ? { фурнитура: String(найден.стоимость) }
+                        : {}),
+                    }));
                   }}
                   className="w-full bg-white/5 border border-white/15 hover:border-white/30 focus:border-brand-blue
                     text-white placeholder-white/30 rounded-xl px-3 sm:px-4 py-3 text-sm outline-none transition-colors"
@@ -811,17 +1005,46 @@ export default function Calculator() {
                 </select>
               </Field>
 
+              {/* Переключатель способа расчёта фурнитуры */}
+              <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit my-4">
+                {[['позиции', 'По позициям'], ['бренд', 'Фикс. сумма бренда']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => {
+                      markTouched();
+                      setSaved(false);
+                      const найден = (settings.брендыФурнитуры || []).find(b => b.бренд === form.фурнитураБренд);
+                      setForm(f => ({
+                        ...f,
+                        фурнитураРежим: val,
+                        // При переключении на «бренд» подставляем его фикс. сумму
+                        ...(val === 'бренд' && найден?.стоимость
+                          ? { фурнитура: String(найден.стоимость) }
+                          : {}),
+                      }));
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      form.фурнитураРежим === val
+                        ? 'bg-brand-blue text-white'
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {form.фурнитураРежим === 'бренд' ? (
+                <Field label="Стоимость фурнитуры (комплект)" hint="фиксированная сумма бренда">
+                  <NumInput value={form.фурнитура} onChange={v => set('фурнитура', v)} placeholder="0" suffix="₽" />
+                </Field>
+              ) : (
+              <>
               {/* Сообщение если цены ещё не заполнены */}
               {(settings.прайсФурнитуры || []).every(p => !p.цена) && (
                 <div className="text-xs text-white/30 mb-4">
                   Цены не заполнены — сначала задайте прайс фурнитуры в{' '}
                   <a href="/settings" className="text-brand-blue hover:underline">Настройках</a>.
-                </div>
-              )}
-              {/* Сообщение о старой сумме при загрузке из истории */}
-              {parseFloat(form.фурнитура) > 0 && (form.фурнитураПозиции || []).every(p => !parseFloat(p.количество)) && (
-                <div className="bg-white/5 rounded-xl px-4 py-2 mb-4 text-xs text-white/40">
-                  Из предыдущего расчёта: {fmt(parseFloat(form.фурнитура))} — обновите позиции ниже
                 </div>
               )}
               <div className="space-y-1">
@@ -858,6 +1081,8 @@ export default function Calculator() {
                   );
                 })}
               </div>
+              </>
+              )}
             </Card>
 
             {/* Блок: Прочие */}

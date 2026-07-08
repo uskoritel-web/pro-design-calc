@@ -1,9 +1,0 @@
-[build]
-  publish = "dist"
-  command = "npm run build"
-
-# Все маршруты отдаём React-приложению
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
